@@ -32,3 +32,4 @@ library
   Exposed-Modules:
         Postgis.Parser
       , Postgis.Types
+      , Postgis.DB

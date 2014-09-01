@@ -33,17 +33,10 @@ data TrailTable = TrailTable {
 	{-geometry_z :: Maybe C.ByteString-}
 } deriving (Show)
 
-
-
-instance FromField Geometry where
-	fromField f m = case m of
-          Just bs -> case runGet parseGeometry bs of
-                       Left e -> return $ error $ "failed parse" ++ e
-                       Right g -> return g 
-          Nothing -> error "failed"
-
 instance FromRow TrailTable where
 	fromRow = TrailTable <$> field 
+
+
 
 hello :: IO ()
 hello = do
