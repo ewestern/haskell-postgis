@@ -2,7 +2,7 @@
 import Database.PostgreSQL.Simple
 import Postgis.Parser
 import Postgis.Types
-
+import Postgis.Db
 import Control.Applicative
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.FromField

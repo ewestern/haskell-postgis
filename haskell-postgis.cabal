@@ -21,7 +21,7 @@ library
   -- other-extensions:    
   build-depends:       
         base >=4.6 && <4.7
-      , vector == 0.10.11.0
+      , vector >= 0.10
       , cereal >= 0.4
       , postgresql-simple == 0.4.4.0
       , data-binary-ieee754 == 0.4.4
