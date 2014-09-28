@@ -17,7 +17,8 @@ data Point = WKBPoint {
 } deriving (Show)
 
 instance ToJSON Point where
- toJSON (WKBPoint x y m z) = object ["type" .= ("Point" :: T.Text), "coordinates" .= [x, y]]
+  toJSON (WKBPoint x y m z) = toJSON [x, y]
+
 instance FromJSON Point where
   parseJSON (Object v) = $notImplemented
 
@@ -36,7 +37,7 @@ instance FromJSON LinearRing where
 data PointGeometry = PointGeometry Header Point deriving (Show)
 
 instance ToJSON PointGeometry where
-  toJSON (PointGeometry h p) = $notImplemented
+  toJSON (PointGeometry h p) = object ["type" .= ("Point" :: T.Text), "coordinates" .= (toJSON p)]
 
 
 instance FromJSON PointGeometry where
@@ -103,10 +104,15 @@ instance ToJSON MultiPolygonGeometry where
 instance FromJSON MultiPolygonGeometry where
   parseJSON (Object v) = $notImplemented
 
-data Geometry = Point PointGeometry | LineString LineStringGeometry | Polygon PolygonGeometry | MuliPoint MultiPointGeometry |  MultiLineString MultiLineStringGeometry | MultiPolygon MultiPolygonGeometry deriving (Show)
+data Geometry = Point PointGeometry | LineString LineStringGeometry | Polygon PolygonGeometry | MultiPoint MultiPointGeometry |  MultiLineString MultiLineStringGeometry | MultiPolygon MultiPolygonGeometry deriving (Show)
 
 instance ToJSON Geometry where
-  toJSON = toJSON
+  toJSON (Point x) = toJSON x 
+  toJSON (LineString x) = toJSON x 
+  toJSON (Polygon x) = toJSON x 
+  toJSON (MultiPoint x) = toJSON x 
+  toJSON (MultiLineString x) = toJSON x 
+  toJSON (MultiPolygon x) = toJSON x 
 
 
 instance FromJSON Geometry where
