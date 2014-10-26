@@ -116,7 +116,7 @@ instance ToJSON Geometry where
 
 
 instance FromJSON Geometry where
-  parseJSON = parseJSON 
+  parseJSON = $notImplemented
 
 data Header = Header {
 	_byteOrder :: Endian,
