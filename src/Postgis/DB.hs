@@ -1,6 +1,5 @@
 module Postgis.DB where
 import Postgis.Types
-import Database.PostgreSQL.Simple
 import Database.PostgreSQL.Simple.FromField
 import Data.Serialize.Get
 import Postgis.Parser

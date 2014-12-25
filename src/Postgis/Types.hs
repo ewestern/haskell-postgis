@@ -1,11 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Postgis.Types where
 
 import qualified Data.Vector as V
 import Data.Aeson
 import Development.Placeholders
 import qualified Data.Text as T
+
+instance ToJSON T.Text where
+  toJSON = toJSON . T.unpack 
 
 data Endian = BigEndian | LittleEndian deriving (Show)
 
@@ -21,10 +25,6 @@ instance ToJSON Point where
 
 instance FromJSON Point where
   parseJSON (Object v) = $notImplemented
-
-  {-parseJSON (Object v)  =  WKBPoint <$> -}
-                            {-v .: "type" *>-}
-                            {-v .: -}
 
 data LinearRing = LinearRing Int (V.Vector Point) deriving (Show)
 

@@ -4,7 +4,6 @@ module Postgis.Parser  (
 import Data.Serialize.Get
 import Postgis.Types
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C
 import Data.Bits
 import qualified Data.Vector as V
 import Data.Text.Read
@@ -21,12 +20,8 @@ textHex = 0xC0000007
 
 parsePoint :: Header -> Get Point
 parsePoint header = do
-	let hasM = if (_geoType header .&. wkbM) > 0
-              then True
-              else False 
-	    hasZ = if (_geoType header .&. wkbZ) > 0
-              then True
-              else False
+	let hasM = if (_geoType header .&. wkbM) > 0 then True else False 
+	    hasZ = if (_geoType header .&. wkbZ) > 0 then True else False
 	    e = _byteOrder header
 	x <- parseDouble e
 	y <- parseDouble e
@@ -59,8 +54,6 @@ parseGeometry = do
 		1 -> parsePointGeometry	header
 		2 -> parseLineString header
 		_ -> error "not yet implemented"
-
--- use Data.Text.Read (hexadecimal) to read a hex string into a Word (32 for integer 64 for double)
 
 parseEndian :: Get Endian
 parseEndian = do
@@ -95,8 +88,7 @@ parseHex bs = case hexadecimal . decodeUtf8 $ bs of
 readEndian :: BS.ByteString -> BS.ByteString
 readEndian bs = BS.concat . reverse $ splitEvery bs
   where
-    splitEvery bs = let (first, rest) = BS.splitAt 2 bs in 
-      if BS.null bs
-         then []
-          else first : (splitEvery rest)
+    splitEvery bs = 
+      let (first, rest) = BS.splitAt 2 bs in 
+      if BS.null bs then [] else first : (splitEvery rest)
  
