@@ -8,9 +8,6 @@ import Data.Aeson
 import Development.Placeholders
 import qualified Data.Text as T
 
-instance ToJSON T.Text where
-  toJSON = toJSON . T.unpack 
-
 data Endian = BigEndian | LittleEndian deriving (Show)
 
 data Point = WKBPoint {
