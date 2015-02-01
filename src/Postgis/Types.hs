@@ -23,6 +23,9 @@ instance ToJSON Point where
 instance FromJSON Point where
   parseJSON (Object v) = $notImplemented
 
+type LineSegment = (Int, V.Vector Point)
+{-data LineSegment = LineSegment Int (V.Vector Point) deriving (Show)-}
+
 data LinearRing = LinearRing Int (V.Vector Point) deriving (Show)
 
 instance ToJSON LinearRing where
@@ -60,18 +63,18 @@ data PolygonGeometry = PolygonGeometry {
 } deriving (Show)
 
 instance ToJSON PolygonGeometry where
-  toJSON (PolygonGeometry ph nr r) = $notImplemented
+  toJSON (PolygonGeometry head num rings) = object ["type" .= ("Polygon" :: T.Text), "coordinates" .= V.map toJSON rings]
 
 instance FromJSON PolygonGeometry where
   parseJSON (Object v) = $notImplemented
 
 data MultiPointGeometry = MultiPointGeometry {
 	_numPointGeometries :: Int,
-	_pointGeometries :: V.Vector PointGeometry
+	_pointGeometries :: V.Vector Geometry
 } deriving (Show)
 
 instance ToJSON MultiPointGeometry where
-  toJSON (MultiPointGeometry np pg) = $notImplemented
+  toJSON (MultiPointGeometry np pg) = object ["type" .= ("MultiPoint" :: T.Text), "coordinates" .= V.map toJSON pg]
 
 
 instance FromJSON MultiPointGeometry where
@@ -79,11 +82,11 @@ instance FromJSON MultiPointGeometry where
 
 data MultiLineStringGeometry = MultiLineStringGeometry {
 	_numLineStrings :: Int,
-	_lineStrings :: V.Vector LineStringGeometry
+	_lineStrings :: V.Vector Geometry
 } deriving (Show)
 
 instance ToJSON MultiLineStringGeometry where
-  toJSON (MultiLineStringGeometry nl ls) = $notImplemented
+  toJSON (MultiLineStringGeometry nl ls) = object ["type" .= ("MultiLineString" :: T.Text), "coordinates" .= V.map toJSON ls]
 
 
 instance FromJSON MultiLineStringGeometry where
@@ -91,12 +94,11 @@ instance FromJSON MultiLineStringGeometry where
 
 data MultiPolygonGeometry = MultiPolygonGeometry {
 	_numPolygons :: Int,
-	_polygons :: V.Vector PolygonGeometry
+	_polygons :: V.Vector Geometry
 } deriving (Show)
 
 instance ToJSON MultiPolygonGeometry where
-  toJSON (MultiPolygonGeometry np ps) = $notImplemented
-
+  toJSON (MultiPolygonGeometry np ps) = object ["type" .= ("MultiPolygon" :: T.Text), "coordinates" .= V.map toJSON ps]
 
 instance FromJSON MultiPolygonGeometry where
   parseJSON (Object v) = $notImplemented

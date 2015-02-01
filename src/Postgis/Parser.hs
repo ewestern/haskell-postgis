@@ -18,6 +18,21 @@ ewkbTypeOffset = 0x1fffffff
 
 textHex = 0xC0000007
 
+
+parseGeometry :: Get Geometry
+parseGeometry = do
+  header <- parseHeader
+  let tVal = (_geoType header) .&. ewkbTypeOffset
+  case tVal of
+    1 -> Point <$> parsePointGeometry header
+    2 -> LineString <$> parseLineString header
+    3 -> Polygon <$> parsePolygon header
+    4 -> MultiPoint <$> parseMultiPoint header
+    5 -> MultiLineString <$> parseMultiLineString header
+    6 -> MultiPolygon <$> parseMultiPolygon header
+    {-7 -> parseGeoCollection header-}
+    _ -> error "not yet implemented"
+
 parsePoint :: Header -> Get Point
 parsePoint header = do
 	let hasM = if (_geoType header .&. wkbM) > 0 then True else False 
@@ -29,6 +44,15 @@ parsePoint header = do
 	z <- if hasZ then Just <$> parseDouble e else return Nothing
 	return $ WKBPoint x y m z
 
+parseSegment :: Header ->  Get LineSegment
+parseSegment head  = do
+  n <- parseInt $ _byteOrder head
+  ps <- V.replicateM n $ parsePoint head
+  return $ (n, ps)
+
+parseRing :: Header -> Get LinearRing
+parseRing head = (LinearRing <$> fst <*> snd) <$> parseSegment head
+  
 parseHeader :: Get Header
 parseHeader = do
 	or <- parseEndian	
@@ -36,24 +60,38 @@ parseHeader = do
 	srid <- if t .&. wkbSRID > 0 then Just <$> parseInt or else return Nothing
 	return $ Header or t srid
 
-parsePointGeometry :: Header -> Get Geometry
+parsePointGeometry :: Header -> Get PointGeometry
 parsePointGeometry head = do
 	p <- parsePoint head
-	return $ Point $ PointGeometry head p
+	return $ PointGeometry head p
 
-parseLineString :: Header -> Get Geometry
-parseLineString head = do
-        n <- parseInt $ _byteOrder head
-        ps <- V.replicateM n $ parsePoint head
-        return $ LineString $ LineStringGeometry head n ps	
+parseLineString :: Header -> Get LineStringGeometry
+parseLineString head = ((LineStringGeometry head) <$> fst <*> snd) <$> parseSegment head
 
-parseGeometry = do
-	header <- parseHeader
-	let tVal = (_geoType header) .&. ewkbTypeOffset
-	case tVal of
-		1 -> parsePointGeometry	header
-		2 -> parseLineString header
-		_ -> error "not yet implemented"
+parsePolygon :: Header -> Get PolygonGeometry
+parsePolygon head = do
+  n <- parseInt $ _byteOrder head
+  vs <- V.replicateM n $ parseRing head  
+  return $ PolygonGeometry head n vs 
+ 
+parseMultiPoint :: Header -> Get MultiPointGeometry
+parseMultiPoint head = do
+  n <- parseInt $ _byteOrder head
+  ps <- V.replicateM n $ parseGeometry
+  return $ MultiPointGeometry n ps
+
+parseMultiLineString :: Header -> Get MultiLineStringGeometry
+parseMultiLineString head = do
+  n <- parseInt $ _byteOrder head
+  ps <- V.replicateM n $ parseGeometry 
+  return $ MultiLineStringGeometry n ps
+  
+parseMultiPolygon :: Header -> Get MultiPolygonGeometry
+parseMultiPolygon head = do
+  n <- parseInt $ _byteOrder head
+  ps <- V.replicateM n $ parseGeometry
+  return $ MultiPolygonGeometry n ps
+
 
 parseEndian :: Get Endian
 parseEndian = do
@@ -62,6 +100,7 @@ parseEndian = do
   case parseHex (BS.drop 2 bs) :: Int of
     0 -> return BigEndian
     1 -> return LittleEndian
+    _ -> error $ "not an endian: " ++ show bs
 
 
 parseDouble :: Endian -> Get Double
@@ -80,6 +119,7 @@ parseInt end = do
       BigEndian ->  return $ parseHex bs
       LittleEndian ->  return $ parseHex $ readEndian bs 
 
+-- todo: need to implement parseBinary
 parseHex :: Integral a => BS.ByteString -> a
 parseHex bs = case hexadecimal . decodeUtf8 $ bs of
       Right (v, r) ->  v
