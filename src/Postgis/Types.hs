@@ -29,7 +29,7 @@ type LineSegment = (Int, V.Vector Point)
 data LinearRing = LinearRing Int (V.Vector Point) deriving (Show)
 
 instance ToJSON LinearRing where
-  toJSON (LinearRing i vs) = $notImplemented
+  toJSON (LinearRing i vs) = toJSON $ V.map toJSON vs 
 
 instance FromJSON LinearRing where
   parseJSON (Object v) = $notImplemented
