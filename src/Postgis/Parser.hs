@@ -19,12 +19,12 @@ ewkbTypeOffset = 0x1fffffff
 textHex = 0xC0000007
 
 -- asewkb format has endian preface. Reconsider this when implementing other interface 
-parseGeometry :: Get Geometry
-parseGeometry = skip 2 >> parseGeometry' 
+{-parseGeometry :: Get Geometry-}
+{-parseGeometry = skip 2 >> parseGeometry' -}
   
 
-parseGeometry' :: Get Geometry
-parseGeometry' = do
+parseGeometry :: Get Geometry
+parseGeometry = do
   header <- parseHeader
   let tVal = (_geoType header) .&. ewkbTypeOffset
   case tVal of
@@ -81,26 +81,25 @@ parsePolygon head = do
 parseMultiPoint :: Header -> Get MultiPointGeometry
 parseMultiPoint head = do
   n <- parseInt $ _byteOrder head
-  ps <- V.replicateM n $ parseGeometry'
+  ps <- V.replicateM n $ parseGeometry
   return $ MultiPointGeometry n ps
 
 parseMultiLineString :: Header -> Get MultiLineStringGeometry
 parseMultiLineString head = do
   n <- parseInt $ _byteOrder head
-  ps <- V.replicateM n $ parseGeometry' 
+  ps <- V.replicateM n $ parseGeometry
   return $ MultiLineStringGeometry n ps
   
 parseMultiPolygon :: Header -> Get MultiPolygonGeometry
 parseMultiPolygon head = do
   n <- parseInt $ _byteOrder head
-  ps <- V.replicateM n $ parseGeometry'
+  ps <- V.replicateM n $ parseGeometry
   return $ MultiPolygonGeometry n ps
 
 
 parseEndian :: Get Endian
 parseEndian = do
   bs <- getByteString 2
-  -- drop initial / in endian definition
   case parseHex bs :: Int of
     0 -> return BigEndian
     1 -> return LittleEndian
@@ -123,10 +122,6 @@ parseInt end = do
       BigEndian ->  return $ parseHex bs
       LittleEndian ->  return $ parseHex $ readEndian bs 
 
-parseHex' :: Integral a => BS.ByteString -> a
-parseHex' bs = error "not implemented"  
-
--- todo: need to implement parseBinary
 parseHex :: Integral a => BS.ByteString -> a
 parseHex bs = case hexadecimal . decodeUtf8 $ bs of
       Right (v, r) ->  v
