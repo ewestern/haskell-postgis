@@ -1,7 +1,8 @@
-module Postgis.Parser  (
+module Database.Postgis.Simple.Parser  (
   parseGeometry
 ) where
-import Data.Serialize.Get
+import Database.Postgis.Simple.Utils
+import Data.Serialize.Put
 import Postgis.Types
 import qualified Data.ByteString as BS
 import Data.Bits
@@ -10,18 +11,6 @@ import Data.Text.Read
 import Control.Applicative
 import Data.Text.Encoding
 import Data.Binary.IEEE754
-
-wkbZ =  0x80000000
-wkbM = 0x40000000
-wkbSRID = 0x20000000
-ewkbTypeOffset = 0x1fffffff
-
-textHex = 0xC0000007
-
--- asewkb format has endian preface. Reconsider this when implementing other interface 
-{-parseGeometry :: Get Geometry-}
-{-parseGeometry = skip 2 >> parseGeometry' -}
-  
 
 parseGeometry :: Get Geometry
 parseGeometry = do
@@ -37,7 +26,7 @@ parseGeometry = do
     {-7 -> parseGeoCollection header-}
     _ -> error "not yet implemented"
 
-parsePoint :: Header -> Get Point
+parsePoint :: Header -> Get WKBPoint
 parsePoint header = do
 	let hasM = if (_geoType header .&. wkbM) > 0 then True else False 
 	    hasZ = if (_geoType header .&. wkbZ) > 0 then True else False
@@ -104,7 +93,6 @@ parseEndian = do
     0 -> return BigEndian
     1 -> return LittleEndian
     _ -> error $ "not an endian: " ++ show bs
-
 
 parseDouble :: Endian -> Get Double
 parseDouble end = do
