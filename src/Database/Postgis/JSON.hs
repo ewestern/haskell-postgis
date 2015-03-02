@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 
 module Database.Postgis.Simple.JSON (
   ToJSON (..),
@@ -6,6 +7,7 @@ module Database.Postgis.Simple.JSON (
 
 import Data.Aeson
 import Database.Postgis.Simple.Types
+import Development.Placeholders
 
 instance ToJSON WKBPoint where
   toJSON (WKBPoint x y m z) = toJSON [x, y]

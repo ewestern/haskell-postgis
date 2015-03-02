@@ -1,5 +1,5 @@
 
-module Database.Postgis.Simple
+module Database.Postgis
   (
 
   )
@@ -10,7 +10,7 @@ import Postgis.Parser
 
 instance FromField Geometry where
 	fromField f m = case m of
-    Just bs -> case runGet parseGeometry bs of
+    Just bs -> case runGet get bs of
                    Left e -> return $ error $ "failed parse" ++ e
                    Right g -> return g 
     Nothing -> error "failed"

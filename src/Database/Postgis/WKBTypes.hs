@@ -1,13 +1,14 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Database.Postgis.Simple.Types where
+module Database.Postgis.WKBTypes where
 
 import qualified Data.Vector as V
 import Development.Placeholders
+import System.Endian (Endianness)
 import qualified Data.Text as T
 
-data Endian = BigEndian | LittleEndian deriving (Show)
+{-data Endian = BigEndian | LittleEndian deriving (Show)-}
 
 data WKBPoint = WKBPoint {
 	_x :: {-# UNPACK #-} !Double,
@@ -16,9 +17,9 @@ data WKBPoint = WKBPoint {
 	_z :: Maybe Double
 } deriving (Show)
 
-type LineSegment = (Int, V.Vector WKBPoint)
-
 data LinearRing = LinearRing Int (V.Vector WKBPoint) deriving (Show)
+
+type LineSegment = (Int, V.Vector WKBPoint)
 
 data PointGeometry = PointGeometry Header WKBPoint deriving (Show)
 
@@ -54,7 +55,7 @@ data MultiPolygonGeometry = MultiPolygonGeometry {
 data Geometry = Point PointGeometry | LineString LineStringGeometry | Polygon PolygonGeometry | MultiPoint MultiPointGeometry |  MultiLineString MultiLineStringGeometry | MultiPolygon MultiPolygonGeometry deriving (Show)
 
 data Header = Header {
-	_byteOrder :: Endian,
+	_byteOrder :: Endianness,
 	_geoType :: Int,
 	_srid :: Maybe Int
 } deriving (Show)
