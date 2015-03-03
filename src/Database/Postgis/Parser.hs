@@ -31,20 +31,22 @@ putGeometry h g = do
   put h
   
 instance Serialize Geometry where
-  put (Point (PointGeometry h p)) =  
-  put (LineString (LineStringGeometry h i p) = 
+  put (PointGeometry p) = put p 
+  put (LineStringGeometry ls) = put ls
+  put (PolygonGeometry p) = put p
+  put (
      
 -- todo: Validate geometry should compare header w/ geo characteristics
   get = do
     header <- get
     let tVal = (_geoType header) .&. ewkbTypeOffset
     case tVal of
-      1 -> Point <$> parsePointGeometry header
-      2 -> LineString <$> parseLineString header
-      3 -> Polygon <$> parsePolygon header
-      4 -> MultiPoint <$> parseMultiPoint header
-      5 -> MultiLineString <$> parseMultiLineString header
-      6 -> MultiPolygon <$> parseMultiPolygon header
+      1 -> PointGeometry <$> parsePointGeometry header
+      2 -> LineStringGeometry <$> parseLineString header
+      3 -> PolygonGeometry <$> parsePolygon header
+      4 -> MultiPointGeometry <$> parseMultiPoint header
+      5 -> MultiLineStringGeometry <$> parseMultiLineString header
+      6 -> MultiPolygonGeometry <$> parseMultiPolygon header
       {-7 -> parseGeoCollection header-}
       _ -> error "not yet implemented"
 
@@ -70,7 +72,7 @@ instance Serialize Endianness where
       1 -> return LittleEndian
       _ -> error $ "not an endian: " ++ show bs
 
-parsePoint :: Header -> Get WKBPoint
+parsePoint :: Header -> Get Point
 parsePoint (Header e gt sr) = do
 	let hasM = if (gt .&. wkbM) > 0 then True else False 
 	    hasZ = if (gt .&. wkbZ) > 0 then True else False
@@ -78,15 +80,18 @@ parsePoint (Header e gt sr) = do
 	y <- parseNum e
 	m <- if hasM then Just <$> parseNum e else return Nothing
 	z <- if hasZ then Just <$> parseNum e else return Nothing
-	return $ WKBPoint x y m z
+	return $ Point x y m z
 
-writePoint :: Header -> Putter WKBPoint 
-writePoint (Header bo gt sr) (WKBPoint x y m z) = do
+writePoint :: Header -> Putter Point 
+writePoint (Header bo gt sr) (Point x y m z) = do
   writeNum bo x
   writeNum bo y
   writeMaybeNum bo m
   writeMaybeNum bo z
   
+
+type LineSegment = (Int, V.Vector Point)
+
 parseSegment :: Header ->  Get LineSegment
 parseSegment head = do
   n <- parseNum $ _byteOrder head
@@ -97,20 +102,24 @@ parseRing :: Header -> Get LinearRing
 parseRing head = (LinearRing <$> fst <*> snd) <$> parseSegment head
 
 
-parsePointGeometry :: Header -> Get PointGeometry
+parsePointGeometry :: Header -> Get Point
 parsePointGeometry head = do
 	p <- parsePoint head
 	return $ PointGeometry head p
 
-writePointGeometry :: Header -> Putter PointGeometry
-writePointGeometry head = 
+writePointGeometry :: Putter Point
+writePointGeometry (Point head p) = do
+  pu
+  
+   
+
   
 
 
 writeLineString :: Header -> Putter LineString
 writeLineString (Header bo gt sr) = 
 
-parseLineString :: Header -> Get LineStringGeometry
+parseLineString :: Header -> Get LineString
 parseLineString head = ((LineStringGeometry head) <$> fst <*> snd) <$> parseSegment head
 
 parseMulti ::  Serialize a => (Int -> V.Vector a -> b) -> Header -> Get b
@@ -119,19 +128,19 @@ parseMulti cons head = do
   ps <- V.replicateM n get
   return $ cons n ps
 
-parsePolygon :: Header -> Get PolygonGeometry
+parsePolygon :: Header -> Get Polygon
 parsePolygon head = do
   n <- parseNum $ _byteOrder head
   vs <- V.replicateM n $ parseRing head  
   return $ PolygonGeometry head n vs 
  
-parseMultiPoint :: Header -> Get MultiPointGeometry
+parseMultiPoint :: Header -> Get MultiPoint
 parseMultiPoint = parseMulti MultiPointGeometry
 
-parseMultiLineString :: Header -> Get MultiLineStringGeometry
+parseMultiLineString :: Header -> Get MultiLineString
 parseMultiLineString = parseMulti MultiLineStringGeometry
  
-parseMultiPolygon :: Header -> Get MultiPolygonGeometry
+parseMultiPolygon :: Header -> Get MultiPolygon
 parseMultiPolygon = parseMulti MultiPolygonGeometry
 
 parseNum :: (Num a, Hexable a) => Endianness -> Get a

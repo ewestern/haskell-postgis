@@ -1,58 +1,47 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell, OverloadedStrings #-}
 
 module Database.Postgis.WKBTypes where
 
+import qualified Database.Postgis.Geometry as G
 import qualified Data.Vector as V
 import Development.Placeholders
 import System.Endian (Endianness)
 import qualified Data.Text as T
 
-{-data Endian = BigEndian | LittleEndian deriving (Show)-}
+data LinearRing = LinearRing Int (V.Vector G.Point) deriving (Show)
 
-data WKBPoint = WKBPoint {
-	_x :: {-# UNPACK #-} !Double,
-	_y :: {-# UNPACK #-} !Double,
-	_m :: Maybe Double,
-	_z :: Maybe Double
-} deriving (Show)
+data Point = Point Header G.Point deriving (Show)
 
-data LinearRing = LinearRing Int (V.Vector WKBPoint) deriving (Show)
-
-type LineSegment = (Int, V.Vector WKBPoint)
-
-data PointGeometry = PointGeometry Header WKBPoint deriving (Show)
-
-data LineStringGeometry = LineStringGeometry {
+data LineString = LineString {
 	_lineStringHeader :: Header,
 	_numPoints :: Int,
-	_points :: V.Vector WKBPoint
+	_points :: V.Vector G.Point
 } deriving (Show)
 
-data PolygonGeometry = PolygonGeometry {
+data Polygon = Polygon {
 	_polygonHeader :: Header,
 	_numRings :: Int,
 	_rings :: V.Vector LinearRing
 } deriving (Show)
 
-data MultiPointGeometry = MultiPointGeometry {
+data MultiPoint = MultiPoint {
 	_numPointGeometries :: Int,
 	_pointGeometries :: V.Vector Geometry
 } deriving (Show)
 
 
-data MultiLineStringGeometry = MultiLineStringGeometry {
+data MultiLineString = MultiLineString {
 	_numLineStrings :: Int,
 	_lineStrings :: V.Vector Geometry
 } deriving (Show)
 
 
-data MultiPolygonGeometry = MultiPolygonGeometry {
+data MultiPolygon = MultiPolygon {
 	_numPolygons :: Int,
 	_polygons :: V.Vector Geometry
 } deriving (Show)
 
-data Geometry = Point PointGeometry | LineString LineStringGeometry | Polygon PolygonGeometry | MultiPoint MultiPointGeometry |  MultiLineString MultiLineStringGeometry | MultiPolygon MultiPolygonGeometry deriving (Show)
+data Geometry = PointGeometry Point | LineStringGeometry LineString | PolygonGeometry Polygon | MultiPointGeometry MultiPoint | MultiLineStringGeometry  MultiLineString | MultiPolygonGeometry MultiPolygon deriving (Show)
 
 data Header = Header {
 	_byteOrder :: Endianness,

@@ -1,4 +1,4 @@
-module Database.Postgis.Types where
+module Database.Postgis.Geometry where
 
 
 import qualified Data.Vector as V
