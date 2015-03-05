@@ -2,6 +2,7 @@
 
 module Database.Postgis.WKBTypes where
 
+
 import qualified Database.Postgis.Geometry as G
 import qualified Data.Vector as V
 import Development.Placeholders
@@ -25,18 +26,21 @@ data Polygon = Polygon {
 } deriving (Show)
 
 data MultiPoint = MultiPoint {
+  _multiPointHeader :: Header,
 	_numPointGeometries :: Int,
 	_pointGeometries :: V.Vector Geometry
 } deriving (Show)
 
 
 data MultiLineString = MultiLineString {
+  _multiLineStringHeader :: Header,
 	_numLineStrings :: Int,
 	_lineStrings :: V.Vector Geometry
 } deriving (Show)
 
 
 data MultiPolygon = MultiPolygon {
+  _multiPolygonHeader :: Header,
 	_numPolygons :: Int,
 	_polygons :: V.Vector Geometry
 } deriving (Show)

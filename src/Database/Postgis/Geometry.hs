@@ -1,6 +1,5 @@
 module Database.Postgis.Geometry where
 
-
 import qualified Data.Vector as V
 import Development.Placeholders
 import qualified Data.Text as T
@@ -14,10 +13,13 @@ data Point = Point {
   _z :: Maybe Double 
 } deriving (Show)
 
+
 data LineString = LineString (V.Vector Point) deriving (Show)
 
-type LinearRing = LineString
+
 -- todo, would like to dependently type this
+data LinearRing = LinearRing (V.Vector Point) deriving (Show)
+
 
 data Polygon = Polygon (V.Vector LinearRing) deriving (Show)
 
