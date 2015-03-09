@@ -11,45 +11,48 @@ import qualified Data.Text as T
 
 data LinearRing = LinearRing Int (V.Vector G.Point) deriving (Show)
 
-data Point = Point Header G.Point deriving (Show)
+data Point = Point {
+    pointHeader :: Header 
+  , point :: G.Point 
+} deriving (Show)
 
 data LineString = LineString {
-	_lineStringHeader :: Header,
-	_numPoints :: Int,
-	_points :: V.Vector G.Point
+	lineStringHeader :: Header,
+	numPoints :: Int,
+	points :: V.Vector G.Point
 } deriving (Show)
 
 data Polygon = Polygon {
-	_polygonHeader :: Header,
-	_numRings :: Int,
-	_rings :: V.Vector LinearRing
+	polygonHeader :: Header,
+	numRings :: Int,
+	rings :: V.Vector LinearRing
 } deriving (Show)
 
 data MultiPoint = MultiPoint {
-  _multiPointHeader :: Header,
-	_numPointGeometries :: Int,
-	_pointGeometries :: V.Vector Geometry
+  multiPointHeader :: Header,
+	numPointGeometries :: Int,
+	pointGeometries :: V.Vector Point 
 } deriving (Show)
 
 
 data MultiLineString = MultiLineString {
-  _multiLineStringHeader :: Header,
-	_numLineStrings :: Int,
-	_lineStrings :: V.Vector Geometry
+  multiLineStringHeader :: Header,
+	numLineStrings :: Int,
+	lineStrings :: V.Vector LineString 
 } deriving (Show)
 
 
 data MultiPolygon = MultiPolygon {
-  _multiPolygonHeader :: Header,
-	_numPolygons :: Int,
-	_polygons :: V.Vector Geometry
+    multiPolygonHeader :: Header
+	, numPolygons :: Int
+	, polygons :: V.Vector Polygon 
 } deriving (Show)
 
 data Geometry = PointGeometry Point | LineStringGeometry LineString | PolygonGeometry Polygon | MultiPointGeometry MultiPoint | MultiLineStringGeometry  MultiLineString | MultiPolygonGeometry MultiPolygon deriving (Show)
 
 data Header = Header {
-	_byteOrder :: Endianness,
-	_geoType :: Int,
-	_srid :: Maybe Int
+	  byteOrder :: Endianness
+	, geoType :: Int
+	, srid :: (Maybe Int)
 } deriving (Show)
 

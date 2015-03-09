@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
-module Database.Postgis.Simple.Parser  where
+module Database.Postgis.Parser  where
 
 import Database.Postgis.Utils
 import Database.Postgis.WKBTypes
@@ -16,7 +16,23 @@ import Control.Applicative
 import Data.Binary.IEEE754
 import System.Endian
 
-class Hexable a where
+
+
+
+
+cclass Hexable a where
+  toHex :: a -> BS.ByteString
+  fromHex :: BS.ByteString -> a
+
+instance Hexable Int where
+  toHex = toHexInt
+  fromHex = fromHexInt
+
+instance Hexable Double where
+  fromHex = wordToDouble . fromHexInt 
+  toHex = toHexInt . doubleToWord
+
+lass Hexable a where
   toHex :: a -> BS.ByteString
   fromHex :: BS.ByteString -> a
 
@@ -34,21 +50,21 @@ instance Serialize Geometry where
   put (PointGeometry p) = writePointGeometry p  
   put (LineStringGeometry ls) = writeLineString ls 
   put (PolygonGeometry p) = writePolygon p 
-  put (MultiPointGeometry p) = writeMultiPoint p 
-  put (MultiLineStringGeometry ls) = writeMultiLineString ls 
-  put (MultiPolygonGeometry mp) = writeMultiPolygon mp 
+  {-put (MultiPointGeometry p) = writeMultiPoint p -}
+  {-put (MultiLineStringGeometry ls) = writeMultiLineString ls -}
+  {-put (MultiPolygonGeometry mp) = writeMultiPolygon mp -}
      
 -- todo: Validate geometry should compare header w/ geo characteristics
   get = do
     header <- get
-    let tVal = (_geoType header) .&. ewkbTypeOffset
+    let tVal = (geoType header) .&. ewkbTypeOffset
     case tVal of
       1 -> PointGeometry <$> parsePointGeometry header
       2 -> LineStringGeometry <$> parseLineString header
       3 -> PolygonGeometry <$> parsePolygon header
-      4 -> MultiPointGeometry <$> parseMultiPoint header
-      5 -> MultiLineStringGeometry <$> parseMultiLineString header
-      6 -> MultiPolygonGeometry <$> parseMultiPolygon header
+      {-4 -> MultiPointGeometry <$> parseMultiPoint header-}
+      {-5 -> MultiLineStringGeometry <$> parseMultiLineString header-}
+      {-6 -> MultiPolygonGeometry <$> parseMultiPolygon header-}
       {-7 -> parseGeoCollection header-}
       _ -> error "not yet implemented"
 
@@ -97,7 +113,7 @@ type LineSegment = (Int, V.Vector G.Point)
 
 parseSegment :: Header ->  Get LineSegment
 parseSegment head = do
-  n <- parseNum $ _byteOrder head
+  n <- parseNum $ byteOrder head
   ps <- V.replicateM n $ parsePoint head
   return $ (n, ps)
 
@@ -108,7 +124,7 @@ parseRing head = do
 
 writeRing :: Header -> Putter LinearRing
 writeRing head (LinearRing n v) = do
-  writeNum (_byteOrder head) n  
+  writeNum (byteOrder head) n  
   V.mapM_ (writePoint head) v
   return ()
   
@@ -123,7 +139,7 @@ writePointGeometry (Point head p) = put head >> writePoint head p
 writeLineString :: Putter LineString
 writeLineString (LineString head i v)  =  do
   put head
-  writeNum (_byteOrder head) i
+  writeNum (byteOrder head) i
   V.mapM_ (writePoint head) v
   return ()
 
@@ -135,51 +151,51 @@ parseLineString head = do
 
 parseMulti ::  Serialize a => (Header -> Int -> V.Vector a -> b) -> Header -> Get b
 parseMulti cons head = do
-  n <- parseNum $ _byteOrder head
+  n <- parseNum $ byteOrder head
   ps <- V.replicateM n get
   return $ cons head n ps
 
 parsePolygon :: Header -> Get Polygon
 parsePolygon head = do
-  n <- parseNum $ _byteOrder head
+  n <- parseNum $ byteOrder head
   vs <- V.replicateM n $ parseRing head  
   return $ Polygon head n vs 
  
 writePolygon :: Putter Polygon
 writePolygon (Polygon h i rs) = do
   put h
-  writeNum (_byteOrder h) i
+  writeNum (byteOrder h) i
   V.mapM_ (writeRing h) rs
   return ()
 
 
-writeMulti :: Header -> Int -> Putter (V.Vector Geometry) 
-writeMulti head i g = do
-  put head
-  writeNum (_byteOrder head) i
-  V.mapM_ put g
+{-writeMulti :: Header -> Int -> Putter (V.Vector a) -}
+{-writeMulti head i g = do-}
+  {-put head-}
+  {-writeNum (byteOrder head) i-}
+  {-V.mapM_ put g-}
 
-writeMultiPoint :: Putter MultiPoint
-writeMultiPoint (MultiPoint h i g)  = writeMulti h i g
+{-writeMultiPoint :: Putter MultiPoint-}
+{-writeMultiPoint (MultiPoint h i g)  = writeMulti h i g-}
 
-parseMultiPoint :: Header -> Get MultiPoint
-parseMultiPoint = parseMulti MultiPoint
+{-parseMultiPoint :: Header -> Get MultiPoint-}
+{-parseMultiPoint = parseMulti MultiPoint-}
 
-writeMultiLineString :: Putter MultiLineString
-writeMultiLineString (MultiLineString h i g) = writeMulti h i g 
+{-writeMultiLineString :: Putter MultiLineString-}
+{-writeMultiLineString (MultiLineString h i g) = writeMulti h i g -}
 
-parseMultiLineString :: Header -> Get MultiLineString
-parseMultiLineString = parseMulti MultiLineString
+{-parseMultiLineString :: Header -> Get MultiLineString-}
+{-parseMultiLineString = parseMulti MultiLineString-}
  
-writeMultiPolygon :: Putter MultiPolygon
-writeMultiPolygon (MultiPolygon h i g) = writeMulti h i g
+{-writeMultiPolygon :: Putter MultiPolygon-}
+{-writeMultiPolygon (MultiPolygon h i g) = writeMulti h i g-}
 
-parseMultiPolygon :: Header -> Get MultiPolygon
-parseMultiPolygon = parseMulti MultiPolygon
+{-parseMultiPolygon :: Header -> Get MultiPolygon-}
+{-parseMultiPolygon = parseMulti MultiPolygon-}
 
 parseNum :: (Num a, Hexable a) => Endianness -> Get a
 parseNum BigEndian = fromHex <$> get  
-parseNum LittleEndian = (fromHex . readLittleEndian) <$> get 
+parseNum LittleEndian = (fromHex . Endian) <$> get 
 
 writeNum :: (Num a, Hexable a) => Endianness -> Putter a
 writeNum BigEndian n = put $ toHex n
