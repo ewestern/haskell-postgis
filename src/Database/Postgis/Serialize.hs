@@ -4,7 +4,7 @@ module Database.Postgis.Serialize  where
 
 import Database.Postgis.Utils
 import Database.Postgis.WKBTypes
-import qualified Database.Postgis.Geometry as G
+import Database.Postgis.Geometry
 --
 import Data.Serialize
 import Data.Serialize.Get
@@ -19,13 +19,13 @@ import System.Endian
 
 import Control.Monad.Reader
 
-readGeometry :: BS.ByteString -> G.Geometry
+readGeometry :: BS.ByteString -> Geometry
 readGeometry bs = case convertFromWKB . runGet . get $ bs of
        Left e -> error $ "Failed to parse geometry. " ++ e
        Right g -> g 
   
-writeGeometry :: G.Geometry -> BS.ByteString
-writeGeometry g =  
+{-writeGeometry :: G.Geometry -> BS.ByteString-}
+{-writeGeometry g =  -}
 
 class Hexable a where
   toHex :: a -> BS.ByteString
@@ -88,7 +88,7 @@ instance Serialize Endianness where
 
 --readers
 
-type LineSegment = (Int, V.Vector G.Point)
+type LineSegment = V.Vector Point
 type Parser = ReaderT Header Get
 
 parseNum' :: (Num a, Hexable a) => Endianness -> Get a
@@ -100,7 +100,7 @@ parseNum = do
   end <- asks byteOrder
   lift $ parseNum' end 
 
-parsePoint :: Parser G.Point
+parsePoint :: Parser Point
 parsePoint = do
     gt <- asks geoType 
     let hasM = if (gt .&. wkbM) > 0 then True else False 
@@ -109,67 +109,64 @@ parsePoint = do
     y <- parseNum
     m <- if hasM then Just <$> parseNum else return Nothing
     z <- if hasZ then Just <$> parseNum else return Nothing
-    return  $ G.Point x y m z
+    return  $ Point x y m z
 
 
 parseSegment :: Parser LineSegment
-parseSegment = do
-  n <- parseNum
-  ps <- V.replicateM n parsePoint
-  return $ (n, ps) 
+parseSegment = parseNum >>= (\n -> V.replicateM n parsePoint) 
+  {-n <- parseNum-}
+  {-ps <- V.replicateM n parsePoint-}
+  {-return $ (n, ps) -}
   
 parseRing :: Parser LinearRing
-parseRing = do 
-  (n, ps) <- parseSegment
-  return $ LinearRing n ps
+parseRing = LinearRing <$> parseSegment 
 
-parsePointGeometry :: Parser Point
-parsePointGeometry = Point <$> ask <*> parsePoint 
+{-parsePointGeometry :: Parser Point-}
+{-parsePointGeometry = Point <$> ask <*> parsePoint -}
 
 parseLineString :: Parser LineString
-parseLineString = do
-  head <- ask
-  (n, ps) <- parseSegment
-  return $ LineString head n ps
+parseLineString = LineString <$> parseSegment
+ {-do-}
+  {-head <- ask-}
+  {-(n, ps) <- parseSegment-}
+  {-return $ LineString head n ps-}
 
 
 parsePolygon :: Parser Polygon
-parsePolygon = do  
-  n <- parseNum
-  head <- ask
-  vs <- V.replicateM n parseRing
-  return $ Polygon head n vs 
+parsePolygon = Polygon <$> (parseNum >>= (\n -> V.replicateM n parseRing))  
  
-parseMulti :: (Header -> Int -> V.Vector a -> b) -> Parser a -> Parser b
-parseMulti cons p = do
-  h <- ask
-  n <- parseNum
-  ps <- V.replicateM n p
-  return $ cons h n ps
+{-parseMulti :: (Header -> Int -> V.Vector a -> b) -> Parser a -> Parser b-}
+{-parseMulti cons p = do-}
+  {-h <- ask-}
+  {-n <- parseNum-}
+  {-ps <- V.replicateM n p-}
+  {-return $ cons h n ps-}
 
-parseMultiPoint :: Parser MultiPoint
-parseMultiPoint = parseMulti MultiPoint parsePointGeometry 
+{-parseMultiPoint :: Parser MultiPoint-}
+{-parseMultiPoint = MultiPoint <$> (parseNum >>= (\n -> V.replicateM n parseGeometry)) -}
+{-parseMulti MultiPoint parsePointGeometry -}
 
-parseMultiLineString :: Parser MultiLineString
-parseMultiLineString = parseMulti MultiLineString parseLineString 
+{-parseMultiLineString :: Parser MultiLineString-}
+{-parseMultiLineString = parseMulti MultiLineString parseLineString -}
 
-parseMultiPolygon :: Parser  MultiPolygon
-parseMultiPolygon = parseMulti MultiPolygon parsePolygon
+{-parseMultiPolygon :: Parser  MultiPolygon-}
+{-parseMultiPolygon = parseMulti MultiPolygon parsePolygon-}
 
 
 --writers
 
-writePoint :: Header -> Putter G.Point 
-writePoint (Header bo gt sr) (G.Point x y m z) = do
+writePoint :: Putter Point 
+writePoint (Point x y m z) = do
+  let bo = getSystemEndianness
   writeNum bo x
   writeNum bo y
   writeMaybeNum bo m
   writeMaybeNum bo z
 
-writeRing :: Header -> Putter LinearRing
-writeRing head (LinearRing n v) = do
-  writeNum (byteOrder head) n  
-  V.mapM_ (writePoint head) v
+writeRing :: Putter LinearRing
+writeRing (LinearRing n v) = do
+  writeNum getSystemEndianness n  
+  V.mapM_ writePoint v
   return ()
  
 writePointGeometry :: Putter Point
@@ -183,6 +180,7 @@ writeLineString (LineString head i v) = do
   return ()
 
  
+-- todo, this should not take an endian
 writeNum :: (Num a, Hexable a) => Endianness -> Putter a
 writeNum BigEndian n = put $ toHex n
 writeNum LittleEndian n = (put . readLittleEndian . toHex) n
