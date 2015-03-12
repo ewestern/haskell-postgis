@@ -41,31 +41,34 @@ instance Hexable Double where
 
  
 instance Serialize Geometry where
-  put (PointGeometry p) = writePointGeometry p  
-  put (LineStringGeometry ls) = writeLineString ls 
-  put (PolygonGeometry p) = writePolygon p 
-  put (MultiPointGeometry p) = writeMultiPoint p 
-  put (MultiLineStringGeometry ls) = writeMultiLineString ls 
-  put (MultiPolygonGeometry mp) = writeMultiPolygon mp 
-     
+  put g = do
+-- todo: need to construct geotype from constituant 
+    case geometry g of
+      Point p ->  writePointGeometry p 
+      LineString ps -> writeLineString ps
+      Polygon ls ->  writePolygon ls 
+      MultiPoint mp ->  w
+      
+
+
+      
 -- todo: Validate geometry should compare header w/ geo characteristics
   get = do
     header <- get
     let tVal = (geoType header) .&. ewkbTypeOffset
     case tVal of
-      1 -> PointGeometry <$> runReaderT parsePointGeometry header
-      2 -> LineStringGeometry <$> runReaderT parseLineString header
-      3 -> PolygonGeometry <$> runReaderT parsePolygon header
-      4 -> MultiPointGeometry <$> runReaderT parseMultiPoint header
-      5 -> MultiLineStringGeometry <$> runReaderT parseMultiLineString header
-      6 -> MultiPolygonGeometry <$> runReaderT parseMultiPolygon header
+      1 -> Geometry <$> runReaderT parsePointGeometry header
+      2 -> Geometry <$> runReaderT parseLineString header
+      3 -> Geometry <$> runReaderT parsePolygon header
+      4 -> Geometry <$> runReaderT parseMultiPoint header
+      5 -> Geometry <$> runReaderT parseMultiLineString header
+      6 -> Geometry <$> runReaderT parseMultiPolygon header
       {-7 -> parseGeoCollection header-}
       _ -> error "not yet implemented"
 
 
 instance Serialize Header where 
   put (Header bo gt sr) = do
--- todo
     put bo
     writeNum bo gt 
     writeMaybeNum bo sr
@@ -154,6 +157,14 @@ parsePolygon = Polygon <$> (parseNum >>= (\n -> V.replicateM n parseRing))
 
 
 --writers
+writeNum :: (Num a, Hexable a) => Endianness -> Putter a
+writeNum BigEndian n = put $ toHex n
+writeNum LittleEndian n = (put . readLittleEndian . toHex) n
+
+writeMaybeNum :: (Num a, Hexable a) => Endianness -> Putter (Maybe a)
+writeMaybeNum end (Just n)  = writeNum end n 
+writeMaybeNum end Nothing = return () 
+
 
 writePoint :: Putter Point 
 writePoint (Point x y m z) = do
@@ -169,49 +180,53 @@ writeRing (LinearRing n v) = do
   V.mapM_ writePoint v
   return ()
  
+writeGeometry :: Putter (Geometry a)
+writeGeometry 
+
+makeHeader :: Geometry a -> Put ()
+makeHeader
+
 writePointGeometry :: Putter Point
-writePointGeometry (Point head p) = put head >> writePoint head p 
+writePointGeometry (Point p) = writePoint p 
   
 writeLineString :: Putter LineString
-writeLineString (LineString head i v) = do
-  put head
-  writeNum (byteOrder head) i
+writeLineString (LineString v) = do
+  writeNum getSystemEndianness $ V.length v
   V.mapM_ (writePoint head) v
   return ()
 
  
 -- todo, this should not take an endian
-writeNum :: (Num a, Hexable a) => Endianness -> Putter a
-writeNum BigEndian n = put $ toHex n
-writeNum LittleEndian n = (put . readLittleEndian . toHex) n
-
-writeMaybeNum :: (Num a, Hexable a) => Endianness -> Putter (Maybe a)
-writeMaybeNum end (Just n)  = writeNum end n 
-writeMaybeNum end Nothing = return () 
-
 writePolygon :: Putter Polygon
-writePolygon (Polygon h i rs) = do
-  put h
-  writeNum (byteOrder h) i
-  V.mapM_ (writeRing h) rs
+writePolygon (Polygon rs) = do
+  writeNum getSystemEndianness $ V.length v
+  V.mapM_ writeRing rs
   return ()
 
-
-writeMulti :: Serialize a => Header -> Int -> Putter (V.Vector a) 
-writeMulti head i g = do
-  put head
-  writeNum (byteOrder head) i
-  V.mapM_ put g
-
 writeMultiPoint :: Putter MultiPoint
-writeMultiPoint (MultiPoint h i g)  = writeMulti h i (PointGeometry <$> g)
+writeMultiPoint (MultiPoint ps) = do
+  writeNum getSystemEndianness $ V.length ps 
+  V.mapM_ (put . Geometry) ps 
+  return ()
 
 writeMultiLineString :: Putter MultiLineString
-writeMultiLineString (MultiLineString h i g) = writeMulti h i (LineStringGeometry <$> g) 
+writeMultiLineString  
+
+{-writeMulti :: Serialize a => Header -> Int -> Putter (V.Vector a) -}
+{-writeMulti head i g = do-}
+  {-put head-}
+  {-writeNum (byteOrder head) i-}
+  {-V.mapM_ put g-}
+
+{-writeMultiPoint :: Putter MultiPoint-}
+{-writeMultiPoint (MultiPoint h i g)  = writeMulti h i (PointGeometry <$> g)-}
+
+{-writeMultiLineString :: Putter MultiLineString-}
+{-writeMultiLineString (MultiLineString h i g) = writeMulti h i (LineStringGeometry <$> g) -}
 
 
-writeMultiPolygon :: Putter MultiPolygon
-writeMultiPolygon (MultiPolygon h i g) = writeMulti h i (PolygonGeometry <$> g)
+{-writeMultiPolygon :: Putter MultiPolygon-}
+{-writeMultiPolygon (MultiPolygon h i g) = writeMulti h i (PolygonGeometry <$> g)-}
 
 -- Util
 toHexInt :: Integral a => a -> BS.ByteString

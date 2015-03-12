@@ -20,26 +20,25 @@ data Header = Header {
 } deriving (Show)
 
 
-
-data LineString = LineString (V.Vector Point) deriving (Show)
-
-
 -- todo, would like to dependently type this
 data LinearRing = LinearRing (V.Vector Point) deriving (Show)
 
+data LineString = LineString (V.Vector Point) deriving (Show)
 
 data Polygon = Polygon (V.Vector LinearRing) deriving (Show)
 
-data MultiPoint = MultiPoint (V.Vector Point) deriving (Show)
+data MultiPoint = MultiPoint (V.Vector (Geometry Point)) deriving (Show)
 
-data MultiLineString = MultiLineString (V.Vector LineString) deriving (Show)
+data MultiLineString = MultiLineString (V.Vector (Geometry LineString)) deriving (Show)
 
-data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Show)
+data MultiPolygon = MultiPolygon (V.Vector (Geometry Polygon)) deriving (Show)
 
-newtype Geometry a = Geometry {
+data Geometry a = Geometry {
+  srid :: Maybe Int
   geometry :: a
 } deriving (Show)
+
 {-data Geometry = PointGeometry Point | LineStringGeometry LineString | PolygonGeometry Polygon | MultiPointGeometry MultiPoint | MultiLineStringGeometry  MultiLineString | MultiPolygonGeometry MultiPolygon deriving (Show)-}
 
-data Feature = Feature (Maybe SRID) Geometry
+{-data Feature = Feature (Maybe SRID) Geometry-}
 
