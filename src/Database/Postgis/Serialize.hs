@@ -1,9 +1,6 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
-
 module Database.Postgis.Serialize  where
 
 import Database.Postgis.Utils
-import Database.Postgis.WKBTypes
 import Database.Postgis.Geometry
 --
 import Data.Serialize
@@ -19,10 +16,15 @@ import System.Endian
 
 import Control.Monad.Reader
 
-readGeometry :: BS.ByteString -> Geometry
-readGeometry bs = case convertFromWKB . runGet . get $ bs of
-       Left e -> error $ "Failed to parse geometry. " ++ e
-       Right g -> g 
+data Header = Header {
+    _byteOrder :: Endianness
+  , _geoType :: Int
+} deriving (Show)
+
+{-readGeometry :: BS.ByteString -> Geometry-}
+{-readGeometry bs = case convertFromWKB . runGet . get $ bs of-}
+       {-Left e -> error $ "Failed to parse geometry. " ++ e-}
+       {-Right g -> g -}
   
 {-writeGeometry :: G.Geometry -> BS.ByteString-}
 {-writeGeometry g =  -}
@@ -39,44 +41,76 @@ instance Hexable Double where
   fromHex = wordToDouble . fromHexInt 
   toHex = toHexInt . doubleToWord
 
+makeHeader :: EWKBGeometry a => Geometry a -> Header 
+makeHeader geo@(Geometry s g) = 
+  let hasSRID = s /= Nothing
+      gt = geoType geo
+      wOr acc (p, h) = if p then h .|. acc else acc
+      typ = foldl wOr gt [(hasM g,wkbM), (hasZ g, wkbZ), (s /= Nothing, wkbSRID)]   
+  in Header getSystemEndianness typ 
  
-instance Serialize Geometry where
-  put g = do
--- todo: need to construct geotype from constituant 
-    case geometry g of
-      Point p ->  writePointGeometry p 
-      LineString ps -> writeLineString ps
-      Polygon ls ->  writePolygon ls 
-      MultiPoint mp ->  w
-      
 
+class Writeable a where
+  write :: Putter a 
+ 
+instance Writeable Point2D where
+  write p = writePoint p
 
-      
+instance Writeable Point3D where
+  write p = writePoint p
+
+instance Writeable Point4D where
+  write p = writePoint p
+
+instance Writeable LineString where
+  write = writeLineString
+
+instance Writeable Polygon where
+  write = writePolygon   
+
+instance Writeable MultiPoint where
+  write = writeMultiPoint
+
+instance Writeable MultiLineString where
+  write = writeMultiLineString 
+instance Writeable MultiPolygon where
+  write = writeMultiPolygon
+
+instance Writeable a => Serialize (Geometry a) where
+  put geo@(Geometry s g) = do
+    put $ makeHeader geo
+    writeMaybeNum getSystemEndianness s
+    write g
+     
 -- todo: Validate geometry should compare header w/ geo characteristics
   get = do
     header <- get
-    let tVal = (geoType header) .&. ewkbTypeOffset
+    s <- if (_geoType header) .&. wkbSRID > 0 
+          then Just <$> parseNum' (_byteOrder header) 
+          else return Nothing 
+    let tVal = (_geoType header) .&. ewkbTypeOffset
+        mkGeo p = do
+          r <- runReaderT p header
+          return $ Geometry s r
     case tVal of
-      1 -> Geometry <$> runReaderT parsePointGeometry header
-      2 -> Geometry <$> runReaderT parseLineString header
-      3 -> Geometry <$> runReaderT parsePolygon header
-      4 -> Geometry <$> runReaderT parseMultiPoint header
-      5 -> Geometry <$> runReaderT parseMultiLineString header
-      6 -> Geometry <$> runReaderT parseMultiPolygon header
+      1 -> mkGeo parsePoint 
+      2 -> mkGeo parseLineString 
+      3 -> mkGeo parsePolygon 
+      4 -> mkGeo parseMultiPoint 
+      5 -> mkGeo parseMultiLineString 
+      6 -> mkGeo parseMultiPolygon 
       {-7 -> parseGeoCollection header-}
       _ -> error "not yet implemented"
 
 
 instance Serialize Header where 
-  put (Header bo gt sr) = do
+  put (Header bo gt) = do
     put bo
     writeNum bo gt 
-    writeMaybeNum bo sr
   get = do
     or <- get	
     t <- parseNum' or
-    srid <- if t .&. wkbSRID > 0 then Just <$> parseNum' or else return Nothing 
-    return $ Header or t srid
+    return $ Header or t 
 
 instance Serialize Endianness where
   put BigEndian = putByteString $ toHex (0::Int)
@@ -91,7 +125,6 @@ instance Serialize Endianness where
 
 --readers
 
-type LineSegment = V.Vector Point
 type Parser = ReaderT Header Get
 
 parseNum' :: (Num a, Hexable a) => Endianness -> Get a
@@ -100,60 +133,62 @@ parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get
 
 parseNum :: (Num a, Hexable a) => Parser a
 parseNum = do
-  end <- asks byteOrder
+  end <- asks _byteOrder
   lift $ parseNum' end 
 
-parsePoint :: Parser Point
+makePointParser :: Point a => Bool -> Bool -> Parser a 
+makePointParser hasM hasZ 
+  | hasM && hasZ = parsePoint4  
+  | not hasM && hasZ = parsePoint3Z 
+  | hasM && not hasZ = parsePoint3M 
+  | not hasM && not hasZ = parsePoint2 
+
+parsePoint :: Point a => Parser a 
 parsePoint = do
-    gt <- asks geoType 
+    gt <- asks _geoType 
     let hasM = if (gt .&. wkbM) > 0 then True else False 
         hasZ = if (gt .&. wkbZ) > 0 then True else False
-    x <- parseNum
-    y <- parseNum
-    m <- if hasM then Just <$> parseNum else return Nothing
-    z <- if hasZ then Just <$> parseNum else return Nothing
-    return  $ Point x y m z
+    makePointParser hasM hasZ
 
+parsePoint2 :: Parser Point2D
+parsePoint2 =  Point2D <$> parseNum <*> parseNum
 
-parseSegment :: Parser LineSegment
+parsePoint3M :: Parser Point3D
+parsePoint3M = Point3DM <$> parseNum <*> parseNum <*> parseNum
+
+parsePoint3Z :: Parser Point3D
+parsePoint3Z = Point3DZ <$> parseNum <*> parseNum <*> parseNum
+
+parsePoint4 :: Parser Point4D
+parsePoint4 = Point4D <$> parseNum <*> parseNum <*> parseNum <*> parseNum
+
+parseSegment :: Point a => Parser (V.Vector a )
 parseSegment = parseNum >>= (\n -> V.replicateM n parsePoint) 
-  {-n <- parseNum-}
-  {-ps <- V.replicateM n parsePoint-}
-  {-return $ (n, ps) -}
   
 parseRing :: Parser LinearRing
 parseRing = LinearRing <$> parseSegment 
 
-{-parsePointGeometry :: Parser Point-}
-{-parsePointGeometry = Point <$> ask <*> parsePoint -}
-
 parseLineString :: Parser LineString
 parseLineString = LineString <$> parseSegment
- {-do-}
-  {-head <- ask-}
-  {-(n, ps) <- parseSegment-}
-  {-return $ LineString head n ps-}
-
 
 parsePolygon :: Parser Polygon
 parsePolygon = Polygon <$> (parseNum >>= (\n -> V.replicateM n parseRing))  
  
-{-parseMulti :: (Header -> Int -> V.Vector a -> b) -> Parser a -> Parser b-}
-{-parseMulti cons p = do-}
-  {-h <- ask-}
+parseMulti :: Serialize a => Parser (V.Vector a)
+parseMulti = parseNum >>= (\n -> V.replicateM n (lift get))
+{-parseMulti = do-}
   {-n <- parseNum-}
-  {-ps <- V.replicateM n p-}
-  {-return $ cons h n ps-}
+  {-v <- V.replicateM n $ lift get -}
+  {-return v-}
 
-{-parseMultiPoint :: Parser MultiPoint-}
-{-parseMultiPoint = MultiPoint <$> (parseNum >>= (\n -> V.replicateM n parseGeometry)) -}
-{-parseMulti MultiPoint parsePointGeometry -}
+parseMultiPoint :: Parser MultiPoint
+parseMultiPoint = MultiPoint <$> parseMulti 
 
-{-parseMultiLineString :: Parser MultiLineString-}
-{-parseMultiLineString = parseMulti MultiLineString parseLineString -}
+parseMultiLineString :: Parser MultiLineString
+parseMultiLineString = MultiLineString <$> parseMulti 
 
-{-parseMultiPolygon :: Parser  MultiPolygon-}
-{-parseMultiPolygon = parseMulti MultiPolygon parsePolygon-}
+parseMultiPolygon :: Parser  MultiPolygon
+parseMultiPolygon = MultiPolygon <$> parseMulti 
 
 
 --writers
@@ -166,83 +201,45 @@ writeMaybeNum end (Just n)  = writeNum end n
 writeMaybeNum end Nothing = return () 
 
 
-writePoint :: Putter Point 
-writePoint (Point x y m z) = do
+writePoint :: Point a => Putter a
+writePoint p = do
   let bo = getSystemEndianness
-  writeNum bo x
-  writeNum bo y
-  writeMaybeNum bo m
-  writeMaybeNum bo z
+  writeNum bo $ _x p
+  writeNum bo $ _y p
+  writeMaybeNum bo $ _m p
+  writeMaybeNum bo $ _z p
 
-writeRing :: Putter LinearRing
-writeRing (LinearRing n v) = do
-  writeNum getSystemEndianness n  
-  V.mapM_ writePoint v
-  return ()
- 
-writeGeometry :: Putter (Geometry a)
-writeGeometry 
-
-makeHeader :: Geometry a -> Put ()
-makeHeader
-
-writePointGeometry :: Putter Point
-writePointGeometry (Point p) = writePoint p 
   
 writeLineString :: Putter LineString
 writeLineString (LineString v) = do
   writeNum getSystemEndianness $ V.length v
-  V.mapM_ (writePoint head) v
+  V.mapM_ writePoint v
   return ()
 
+writeRing :: Putter LinearRing
+writeRing (LinearRing v) = do
+  writeNum getSystemEndianness $ V.length v  
+  V.mapM_ writePoint v
+  return ()
  
--- todo, this should not take an endian
 writePolygon :: Putter Polygon
 writePolygon (Polygon rs) = do
-  writeNum getSystemEndianness $ V.length v
+  writeNum getSystemEndianness $ V.length rs 
   V.mapM_ writeRing rs
   return ()
 
-writeMultiPoint :: Putter MultiPoint
-writeMultiPoint (MultiPoint ps) = do
-  writeNum getSystemEndianness $ V.length ps 
-  V.mapM_ (put . Geometry) ps 
+
+writeMulti :: Serialize a => Putter (V.Vector a)
+writeMulti v = do
+  writeNum getSystemEndianness $ V.length v 
+  V.mapM_ put v 
   return ()
 
+writeMultiPoint :: Putter MultiPoint
+writeMultiPoint (MultiPoint ps) = writeMulti ps  
+
 writeMultiLineString :: Putter MultiLineString
-writeMultiLineString  
+writeMultiLineString (MultiLineString ls) = writeMulti ls    
 
-{-writeMulti :: Serialize a => Header -> Int -> Putter (V.Vector a) -}
-{-writeMulti head i g = do-}
-  {-put head-}
-  {-writeNum (byteOrder head) i-}
-  {-V.mapM_ put g-}
-
-{-writeMultiPoint :: Putter MultiPoint-}
-{-writeMultiPoint (MultiPoint h i g)  = writeMulti h i (PointGeometry <$> g)-}
-
-{-writeMultiLineString :: Putter MultiLineString-}
-{-writeMultiLineString (MultiLineString h i g) = writeMulti h i (LineStringGeometry <$> g) -}
-
-
-{-writeMultiPolygon :: Putter MultiPolygon-}
-{-writeMultiPolygon (MultiPolygon h i g) = writeMulti h i (PolygonGeometry <$> g)-}
-
--- Util
-toHexInt :: Integral a => a -> BS.ByteString
-toHexInt i = case packHexadecimal i of
-    Just bs -> bs
-    Nothing -> error "Cannot create bytestring"
-
-fromHexInt :: Integral a => BS.ByteString -> a
-fromHexInt bs = case readHexadecimal bs of
-    Just (v, r) -> v
-    Nothing -> error "Cannot parse hexadecimal"
-
-readLittleEndian :: BS.ByteString -> BS.ByteString
-readLittleEndian bs = BS.concat . reverse $ splitEvery bs
-  where
-    splitEvery bs = 
-      let (first, rest) = BS.splitAt 2 bs in 
-      if BS.null bs then [] else first : (splitEvery rest)
- 
+writeMultiPolygon :: Putter MultiPolygon
+writeMultiPolygon (MultiPolygon ps) = writeMulti ps 
