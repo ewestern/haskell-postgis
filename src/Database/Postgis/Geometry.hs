@@ -14,72 +14,22 @@ class EWKBGeometry a where
   geoType :: a -> Int
 
   
-class Point a where
-  dimensions :: a -> Int
-  _x :: a -> Double
-  _y :: a -> Double
-  _z :: a -> Maybe Double
-  _m :: a -> Maybe Double
+data Point = Point {
+    _x :: {-# UNPACK #-} !Double
+  , _y :: {-# UNPACK #-} !Double
+  , _z :: Maybe Double
+  , _m :: Maybe Double
+} deriving (Show)
 
-data Point2D = Point2D {-# UNPACK #-} !Double  
-                       {-# UNPACK #-} !Double deriving (Show)
-
-instance Point Point2D where
-  dimensions _ = 2
-  _x (Point2D x _) = x 
-  _y (Point2D _ y) = y 
-  _z _ = Nothing
-  _m _ = Nothing
-
-instance EWKBGeometry Point2D where
-  hasM _ = False
-  hasZ _ = False
+instance EWKBGeometry Point where
+  hasM (Point x y z m) = m /= Nothing 
+  hasZ (Point x y z m) = z /= Nothing 
   geoType _ = 1
+ 
 
-data Point3D = Point3DZ {-# UNPACK #-} !Double  
-                        {-# UNPACK #-} !Double
-                        {-# UNPACK #-} !Double
-             | Point3DM {-# UNPACK #-} !Double  
-                        {-# UNPACK #-} !Double
-                        {-# UNPACK #-} !Double deriving (Show)
-
-
-instance EWKBGeometry Point3D where
-  hasM _ = True
-  hasZ _ = False
-  geoType _ = 1
-
-instance Point Point3D where
-  dimensions _ = 3
-  _x (Point3DZ x _ _) = x 
-  _x (Point3DM x _ _) = x
-  _y (Point3DZ _ y _) = y 
-  _y (Point3DM _ y _) = y 
-  _z (Point3DZ _ _ z) = Just z 
-  _z (Point3DM _ _ _) = Nothing 
-  _m (Point3DM _ _ m) = Just m 
-  _m (Point3DZ _ _ _) = Nothing  
-
-data Point4D = Point4D {-# UNPACK #-} !Double  
-                       {-# UNPACK #-} !Double
-                       {-# UNPACK #-} !Double
-                       {-# UNPACK #-} !Double deriving (Show)
-
-
-instance EWKBGeometry Point4D where
-  hasM _ = True
-  hasZ _ = True
-  geoType _ = 1
-
-instance Point Point4D where
-  dimensions _ = 4
-  _x (Point4D x _ _ _) = x 
-  _y (Point4D _ y _ _) = y 
-  _z (Point4D _ _ z _) = Just z 
-  _m (Point4D _ _ _ m) = Just m 
 
 -- todo, would like to dependently type this
-data LinearRing = forall a. (EWKBGeometry a, Point a, Show a) => LinearRing (V.Vector a) 
+data LinearRing =  LinearRing (V.Vector Point) 
 
 instance Show LinearRing where
   show (LinearRing vs) = show vs
@@ -89,7 +39,7 @@ instance Show LinearRing where
   {-hasM (LinearRing ps) = hasM . V.head $ ps-}
   {-hasZ (LinearRing ps) = hasZ . V.head $ ps-}
 
-data LineString = forall a. (EWKBGeometry a, Point a, Show a) => LineString (V.Vector a) 
+data LineString = LineString (V.Vector Point) 
 
 instance Show LineString where
   show (LineString vs) = show vs
@@ -112,7 +62,7 @@ instance EWKBGeometry Polygon where
   hasZ (Polygon ps) = hasZLinearRing . V.head $ ps
   geoType _ = 3
 
-data MultiPoint = forall a. (EWKBGeometry a, Point a, Show a) => MultiPoint (V.Vector (Geometry a)) 
+data MultiPoint = MultiPoint (V.Vector (Geometry Point)) 
 
 instance Show MultiPoint where
   show (MultiPoint ps) = show ps
@@ -136,35 +86,33 @@ instance EWKBGeometry MultiPolygon where
   hasZ (MultiPolygon ps) = hasZ . V.head $ ps
   geoType _ = 6
 
-data Geometry a where
-  GeoPoint :: Point a => SRID -> a -> Geometry a
-  GeoLineString :: SRID -> LineString -> Geometry LineString 
-  GeoPolygon :: SRID -> Polygon -> Geometry Polygon
-  GeoMultiPoint :: SRID -> MultiPoint -> Geometry MultiPoint
-  GeoMultiLineString :: SRID -> MultiLineString -> Geometry MultiLineString
-  GeoMultiPolygon :: SRID -> MultiPolygon -> Geometry MultiPolygon 
+data Geometry a = Geometry {
+    srid :: SRID
+  , geometry :: a
+} deriving (Show)
 
-{-data Geometry a = forall a. (EWKBGeometry a, Point a, Show a) => Geometry -}
-    {-srid :: Maybe Int-}
-  {-, geometry :: a-}
-{-} -}
-
-{-instance EWKBGeometry (Geometry a) where-}
-  {-hasM (Geometry g) = hasM g -}
-  {-hasZ (Geometry g) = hasZ g -}
-  {-geoType _ = 0-}
+instance EWKBGeometry a => EWKBGeometry (Geometry a) where
+  hasM (Geometry s g) = hasM g 
+  hasZ (Geometry s g) = hasZ g 
+  geoType _ = 6
 
 
 
-instance Show a => Show (Geometry a) where
-  show (GeoPoint s p) = show p
-  show (GeoLineString s l) = show l
-  show (GeoPolygon s p) = show p
-  show (GeoMultiPoint s p) = show p
-  show (GeoMultiLineString s l) = show l
-  show (GeoMultiPolygon s p) = show p
+{-data Geometry a where-}
+  {-GeoPoint :: SRID -> a -> Geometry a-}
+  {-GeoLineString :: SRID -> LineString -> Geometry LineString -}
+  {-GeoPolygon :: SRID -> Polygon -> Geometry Polygon-}
+  {-GeoMultiPoint :: SRID -> MultiPoint -> Geometry MultiPoint-}
+  {-GeoMultiLineString :: SRID -> MultiLineString -> Geometry MultiLineString-}
+  {-GeoMultiPolygon :: SRID -> MultiPolygon -> Geometry MultiPolygon -}
 
 
-  {-hasM (Geometry s g) = hasM g-}
-  {-hasZ (Geometry s g) = hasZ g-}
-  {-geoType _ = 0-}
+{-instance Show a => Show (Geometry a) where-}
+  {-show (GeoPoint s p) = show p-}
+  {-show (GeoLineString s l) = show l-}
+  {-show (GeoPolygon s p) = show p-}
+  {-show (GeoMultiPoint s p) = show p-}
+  {-show (GeoMultiLineString s l) = show l-}
+  {-show (GeoMultiPolygon s p) = show p-}
+
+
