@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification, FlexibleInstances, GADTs #-}
+{-# LANGUAGE GADTs #-}
 
 module Database.Postgis.Geometry where
 
