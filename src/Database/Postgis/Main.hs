@@ -1,18 +1,13 @@
 
 module Database.Postgis
   (
+    module Database.Postgis.Geometry
+  , readGeometry
 
-  )
-import Database.Postgis.Simple.Types
-import Database.PostgreSQL.Simple.FromField
+  ) where
+import Database.Postgis.Geometry
 import Data.Serialize.Get
-import Postgis.Parser
-
-instance FromField Geometry where
-	fromField f m = case m of
-    Just bs -> case runGet get bs of
-                   Left e -> return $ error $ "failed parse" ++ e
-                   Right g -> return g 
-    Nothing -> error "failed"
+import Database.Postgis.Serialize
+import qualified Data.ByteString as BS
 
 

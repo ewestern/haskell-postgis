@@ -17,6 +17,12 @@ import Control.Monad.Reader
 import qualified Data.Vector as V
 import qualified Data.ByteString as BS
 
+readGeometry :: BS.ByteString -> Geometry 
+readGeometry bs = case runGet parseGeometry bs of
+           Left e -> error $ "failed parse" ++ e
+           Right g -> g 
+
+
 data Header = Header {
     _byteOrder :: Endianness
   , _geoType :: Int
