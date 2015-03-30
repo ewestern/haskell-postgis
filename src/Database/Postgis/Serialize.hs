@@ -4,9 +4,8 @@ module Database.Postgis.Serialize  where
 
 import Database.Postgis.Utils
 import Database.Postgis.Geometry
-import Data.Serialize (Serialize, put, get, Putter)
+import Data.Serialize 
 import Data.Word
-import Data.Serialize.Get
 import Development.Placeholders
 import Data.ByteString.Lex.Integral
 import Data.Bits
@@ -18,6 +17,9 @@ import Data.Int
 
 import qualified Data.Vector as V
 import qualified Data.ByteString as BS
+
+
+import Data.Typeable
 
 readGeometry :: BS.ByteString -> Geometry 
 readGeometry bs = case runGet parseGeometry bs of
@@ -65,6 +67,7 @@ parseGeometry :: Get Geometry
 parseGeometry = do
     h <- lookAhead get
     let tVal = (_geoType h) .&. ewkbTypeOffset
+    error $ show tVal
     case tVal of
       1 -> mkGeo h GeoPoint parsePoint
       2 -> mkGeo h GeoLineString parseLineString 
@@ -84,7 +87,7 @@ instance Serialize Header where
 parseHeader :: Get Header  
 parseHeader = do 
     or <- get	
-    t <- parseInt or
+    t <- parseNum' or
     s <- if t .&. wkbSRID > 0 then Just <$> parseNum' or  else return Nothing 
     return $ Header or t s
 
@@ -95,10 +98,17 @@ parseInt end = do
     BigEndian -> return $ fromHex bs
     LittleEndian -> return $ (fromHex . readLittleEndian) bs 
 
- {-instance Hexable Int where-}
-  {-toHex = toHexInt-}
-  {-fromHex = fromHexInt-}
- 
+{-parseDouble :: Endianness -> Get Double -}
+{-parseDouble end = do-}
+  {-bs <- getByteString 16-}
+  {-case end of -}
+    {-BigEndian -> return $ getDouble-}
+    {-LittleEndian -> return $ getDouble $ -}
+
+
+{-instanceSerialize Double where-}
+    {-put d = put (decodeFloat d)-}
+        {-get   = liftM2 encodeFloat get get-}
 
 instance Serialize Endianness where
   put BigEndian = putByteString $ toHex (0::Int)
@@ -113,19 +123,14 @@ instance Serialize Endianness where
 
 type Parser = ReaderT Header Get
 
-parseNum' :: (Num a, Hexable a) => Endianness -> Get a
+parseNum' :: (Show a, Num a, Hexable a) => Endianness -> Get a
 parseNum' BigEndian =  fromHex <$> get
 {-parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get-}
-parseNum' LittleEndian = do
-  i <- get
-  error $ "parseNum: " ++ (show i)
-  return $ (fromHex . readLittleEndian)  i
+parseNum' LittleEndian =  liftM fromIntegral (get :: Get Word8)
+  {-return $ (fromHex . readLittleEndian)  i-}
   
-{-instance Serialize Int where-}
-  {-put i = put (fromIntegral i :: Word8)-}
-  {-get = liftM (fromIntegral get :: Get Word8)-}
 
-parseNum :: (Num a, Hexable a) => Parser a
+parseNum :: (Show a, Num a, Hexable a) => Parser a
 parseNum = do
   end <- asks _byteOrder
   lift $ parseNum' end 
@@ -142,7 +147,7 @@ parsePoint = do
     return $ Point x y z m
 
 parseSegment :: Parser (V.Vector Point)
-parseSegment = parseNum >>= (\n -> V.replicateM (n :: Int8) parsePoint) 
+parseSegment = parseNum >>= (\n -> V.replicateM n parsePoint) 
   
 parseRing :: Parser LinearRing
 parseRing = LinearRing <$> parseSegment 
