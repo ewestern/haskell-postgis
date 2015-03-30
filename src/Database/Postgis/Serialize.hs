@@ -4,7 +4,8 @@ module Database.Postgis.Serialize  where
 
 import Database.Postgis.Utils
 import Database.Postgis.Geometry
-import Data.Serialize
+import Data.Serialize (Serialize, put, get, Putter)
+import Data.Word
 import Data.Serialize.Get
 import Development.Placeholders
 import Data.ByteString.Lex.Integral
@@ -13,6 +14,7 @@ import Control.Applicative ((<*>), (<$>))
 import Data.Binary.IEEE754
 import System.Endian
 import Control.Monad.Reader
+import Data.Int
 
 import qualified Data.Vector as V
 import qualified Data.ByteString as BS
@@ -25,7 +27,7 @@ readGeometry bs = case runGet parseGeometry bs of
 
 data Header = Header {
     _byteOrder :: Endianness
-  , _geoType :: Int
+  , _geoType :: Int8
   , _srid :: SRID
 } deriving (Show)
 
@@ -35,6 +37,11 @@ class Hexable a where
   fromHex :: BS.ByteString -> a
 
 instance Hexable Int where
+  toHex = toHexInt
+  fromHex = fromHexInt
+
+
+instance Hexable Int8 where
   toHex = toHexInt
   fromHex = fromHexInt
 
@@ -77,10 +84,21 @@ instance Serialize Header where
 parseHeader :: Get Header  
 parseHeader = do 
     or <- get	
-    t <- parseNum' or
+    t <- parseInt or
     s <- if t .&. wkbSRID > 0 then Just <$> parseNum' or  else return Nothing 
     return $ Header or t s
 
+parseInt :: Endianness -> Get Int8
+parseInt end = do
+  bs <- getByteString 8
+  case end of
+    BigEndian -> return $ fromHex bs
+    LittleEndian -> return $ (fromHex . readLittleEndian) bs 
+
+ {-instance Hexable Int where-}
+  {-toHex = toHexInt-}
+  {-fromHex = fromHexInt-}
+ 
 
 instance Serialize Endianness where
   put BigEndian = putByteString $ toHex (0::Int)
@@ -97,7 +115,15 @@ type Parser = ReaderT Header Get
 
 parseNum' :: (Num a, Hexable a) => Endianness -> Get a
 parseNum' BigEndian =  fromHex <$> get
-parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get
+{-parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get-}
+parseNum' LittleEndian = do
+  i <- get
+  error $ "parseNum: " ++ (show i)
+  return $ (fromHex . readLittleEndian)  i
+  
+{-instance Serialize Int where-}
+  {-put i = put (fromIntegral i :: Word8)-}
+  {-get = liftM (fromIntegral get :: Get Word8)-}
 
 parseNum :: (Num a, Hexable a) => Parser a
 parseNum = do
@@ -116,7 +142,7 @@ parsePoint = do
     return $ Point x y z m
 
 parseSegment :: Parser (V.Vector Point)
-parseSegment = parseNum >>= (\n -> V.replicateM n parsePoint) 
+parseSegment = parseNum >>= (\n -> V.replicateM (n :: Int8) parsePoint) 
   
 parseRing :: Parser LinearRing
 parseRing = LinearRing <$> parseSegment 

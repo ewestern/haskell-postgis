@@ -5,7 +5,7 @@ module Database.Postgis.Geometry where
 import qualified Data.Vector as V
 import Development.Placeholders
 import qualified Data.Text as T
-
+import Data.Int
 
 {-Linear rings—Rings are simple and closed, which means that linear rings may not self intersect.-}
 
@@ -13,13 +13,13 @@ import qualified Data.Text as T
 
 {-Multipolygons—The interiors of two polygons that are elements of a multipolygon may not intersect. The boundaries of any two polygons that are elements of a multipolygon may touch at only a finite number of points.-}
 
-type SRID = Maybe Int
+type SRID = Maybe Int8
 
 
 class EWKBGeometry a where
   hasM :: a -> Bool
   hasZ :: a -> Bool
-  geoType :: a -> Int
+  geoType :: a -> Int8
 
 data Point = Point {
     _x :: {-# UNPACK #-} !Double
