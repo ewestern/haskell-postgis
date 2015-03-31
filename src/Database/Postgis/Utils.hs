@@ -8,11 +8,11 @@ import Data.ByteString.Lex.Integral
 import Data.Int
 
 
-wkbZ =  0x80000000 :: Int8
-wkbM = 0x40000000 :: Int8
-wkbSRID = 0x20000000 :: Int8
-ewkbTypeOffset = 0x1fffffff :: Int8
-textHex = 0xC0000007 :: Int8
+wkbZ =  0x80000000 :: Int
+wkbM = 0x40000000 :: Int
+wkbSRID = 0x20000000 :: Int
+ewkbTypeOffset = 0x1fffffff :: Int
+textHex = 0xC0000007 :: Int
 
 toHexInt :: Integral a => a -> BS.ByteString
 toHexInt i = case packHexadecimal i of

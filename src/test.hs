@@ -20,7 +20,9 @@ instance FromField Geometry where
 
 main :: IO ()
 main = do
-   conn <- connectPostgreSQL "dbname=trailio host=localhost user=trailio password=trailio"
-   xs <- query_ conn "select geometry from osm_trails limit 2"
-   print $ (head xs :: TrailTable) 
+   conn <- connectPostgreSQL "dbname=nyc host=localhost user=petefrance password=ellivretrop1"
+   {-conn <- connectPostgreSQL "dbname=trailio host=localhost user=trailio password=trailio"-}
+   xs <- query_ conn "select geometry from osm_admin limit 2"
+   putStrLn $ take 200 $ show  (head xs :: TrailTable)
+   {-print $ (head xs :: TrailTable) -}
    return ()

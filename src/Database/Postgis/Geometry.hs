@@ -13,13 +13,13 @@ import Data.Int
 
 {-Multipolygons—The interiors of two polygons that are elements of a multipolygon may not intersect. The boundaries of any two polygons that are elements of a multipolygon may touch at only a finite number of points.-}
 
-type SRID = Maybe Int8
+type SRID = Maybe Int
 
 
 class EWKBGeometry a where
   hasM :: a -> Bool
   hasZ :: a -> Bool
-  geoType :: a -> Int8
+  geoType :: a -> Int
 
 data Point = Point {
     _x :: {-# UNPACK #-} !Double
@@ -87,9 +87,9 @@ instance EWKBGeometry MultiPolygon where
   geoType _ = 6
 
 instance Show Geometry where
-  show (GeoPoint s g) = show g 
-  show (GeoLineString s g) = show g 
-  show (GeoPolygon s g) = show g 
+  show (GeoPoint s g) = show (s, g) 
+  show (GeoLineString s g) = show (s, g) 
+  show (GeoPolygon s g) = show (s, g) 
   show (GeoMultiPoint s g) = show g 
   show (GeoMultiLineString s g) = show g 
   show (GeoMultiPolygon s g) = show g 
@@ -110,13 +110,5 @@ data Geometry =
   | GeoMultiLineString SRID MultiLineString
   | GeoMultiPoint SRID MultiPoint
   | GeoMultiPolygon SRID MultiPolygon
-
-{-data Geometry a where-}
-  {-GeoPoint :: SRID -> Point -> Geometry Point-}
-  {-GeoLineString :: SRID -> LineString -> Geometry LineString-}
-  {-GeoPolygon :: SRID -> Polygon -> Geometry Polygon-}
-  {-GeoMultiLineString :: SRID -> MultiLineString -> Geometry MultiLineString-}
-  {-GeoMultiPoint :: SRID -> MultiPoint -> Geometry MultiPoint-}
-  {-GeoMultiPolygon :: SRID -> MultiPolygon -> Geometry MultiPolygon-}
 
 

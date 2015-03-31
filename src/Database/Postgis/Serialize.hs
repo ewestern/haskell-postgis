@@ -29,7 +29,7 @@ readGeometry bs = case runGet parseGeometry bs of
 
 data Header = Header {
     _byteOrder :: Endianness
-  , _geoType :: Int8
+  , _geoType :: Int
   , _srid :: SRID
 } deriving (Show)
 
@@ -39,11 +39,6 @@ class Hexable a where
   fromHex :: BS.ByteString -> a
 
 instance Hexable Int where
-  toHex = toHexInt
-  fromHex = fromHexInt
-
-
-instance Hexable Int8 where
   toHex = toHexInt
   fromHex = fromHexInt
 
@@ -67,9 +62,8 @@ parseGeometry :: Get Geometry
 parseGeometry = do
     h <- lookAhead get
     let tVal = (_geoType h) .&. ewkbTypeOffset
-    error $ show tVal
     case tVal of
-      1 -> mkGeo h GeoPoint parsePoint
+      1 -> mkGeo h GeoPoint parseGeoPoint
       2 -> mkGeo h GeoLineString parseLineString 
       3 -> mkGeo h GeoPolygon parsePolygon 
       4 -> mkGeo h GeoMultiPoint parseMultiPoint 
@@ -87,28 +81,28 @@ instance Serialize Header where
 parseHeader :: Get Header  
 parseHeader = do 
     or <- get	
-    t <- parseNum' or
-    s <- if t .&. wkbSRID > 0 then Just <$> parseNum' or  else return Nothing 
+    t <- parseInt' or
+    s <- if t .&. wkbSRID > 0 then Just <$> parseInt' or  else return Nothing 
     return $ Header or t s
 
-parseInt :: Endianness -> Get Int8
-parseInt end = do
-  bs <- getByteString 8
-  case end of
+parseInt' :: Endianness -> Get Int
+parseInt' = parseNumber 8
+
+parseInt :: Parser Int
+parseInt = (parseInt' <$> (asks _byteOrder)) >>= lift
+
+parseDouble' :: Endianness -> Get Double 
+parseDouble' = parseNumber 16
+
+parseNumber :: (Hexable a , Num a) => Int -> Endianness -> Get a
+parseNumber l end = do
+  bs <- getByteString l
+  case end of 
     BigEndian -> return $ fromHex bs
-    LittleEndian -> return $ (fromHex . readLittleEndian) bs 
+    LittleEndian -> return . fromHex . readLittleEndian $ bs 
 
-{-parseDouble :: Endianness -> Get Double -}
-{-parseDouble end = do-}
-  {-bs <- getByteString 16-}
-  {-case end of -}
-    {-BigEndian -> return $ getDouble-}
-    {-LittleEndian -> return $ getDouble $ -}
-
-
-{-instanceSerialize Double where-}
-    {-put d = put (decodeFloat d)-}
-        {-get   = liftM2 encodeFloat get get-}
+parseDouble :: Parser Double
+parseDouble = (parseDouble' <$> (asks _byteOrder)) >>= lift
 
 instance Serialize Endianness where
   put BigEndian = putByteString $ toHex (0::Int)
@@ -125,9 +119,7 @@ type Parser = ReaderT Header Get
 
 parseNum' :: (Show a, Num a, Hexable a) => Endianness -> Get a
 parseNum' BigEndian =  fromHex <$> get
-{-parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get-}
-parseNum' LittleEndian =  liftM fromIntegral (get :: Get Word8)
-  {-return $ (fromHex . readLittleEndian)  i-}
+parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get
   
 
 parseNum :: (Show a, Num a, Hexable a) => Parser a
@@ -135,52 +127,52 @@ parseNum = do
   end <- asks _byteOrder
   lift $ parseNum' end 
 
+parseGeoPoint :: Parser Point
+parseGeoPoint = lift parseHeader >> parsePoint
+
 parsePoint :: Parser Point
 parsePoint = do
     gt <- asks _geoType 
     let hasM = if (gt .&. wkbM) > 0 then True else False 
         hasZ = if (gt .&. wkbZ) > 0 then True else False
-    x <- parseNum
-    y <- parseNum
-    z <- if hasZ then Just <$> parseNum else return Nothing
-    m <- if hasM then Just <$> parseNum else return Nothing
+    x <- parseDouble
+    y <- parseDouble
+    z <- if hasZ then Just <$> parseDouble else return Nothing
+    m <- if hasM then Just <$> parseDouble else return Nothing
     return $ Point x y z m
 
 parseSegment :: Parser (V.Vector Point)
-parseSegment = parseNum >>= (\n -> V.replicateM n parsePoint) 
+parseSegment = parseInt >>= (\n -> V.replicateM n parsePoint) 
   
 parseRing :: Parser LinearRing
 parseRing = LinearRing <$> parseSegment 
 
 parseLineString :: Parser LineString 
-parseLineString = LineString <$> parseSegment
+parseLineString = lift parseHeader >> LineString <$> parseSegment
 
 parsePolygon :: Parser Polygon 
-parsePolygon = Polygon <$> (parseNum >>= (\n -> V.replicateM n parseRing))
+parsePolygon = lift parseHeader >> Polygon <$> (parseInt >>= (\n -> V.replicateM n parseRing))
 
 parseMultiPoint :: Parser MultiPoint 
 parseMultiPoint = do
-  n <- parseNum 
-  ps <- V.replicateM n pPointGeo
+  lift parseHeader
+  n <- parseInt 
+  ps <- V.replicateM n parseGeoPoint
   return $ MultiPoint ps
-  where 
-    pPointGeo = lift parseHeader >> parsePoint 
 
 parseMultiLineString :: Parser MultiLineString 
 parseMultiLineString = do
-  n <- parseNum
-  ls <- V.replicateM n pLineString 
+  lift parseHeader
+  n <- parseInt
+  ls <- V.replicateM n parseLineString 
   return $ MultiLineString ls
-  where
-    pLineString = lift parseHeader >> parseLineString
 
 parseMultiPolygon :: Parser MultiPolygon 
 parseMultiPolygon = do 
-  n <- parseNum
-  ps <- V.replicateM n pPolygon
+  lift parseHeader
+  n <- parseInt
+  ps <- V.replicateM n parsePolygon
   return $ MultiPolygon ps
-  where
-    pPolygon = lift parseHeader >> parsePolygon
 
 
 writeNum :: (Num a, Hexable a) => Endianness -> Putter a
