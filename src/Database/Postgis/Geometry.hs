@@ -5,7 +5,7 @@ module Database.Postgis.Geometry where
 import qualified Data.Vector as V
 import Development.Placeholders
 import qualified Data.Text as T
-import Data.Int
+import Data.Word
 
 {-Linear rings—Rings are simple and closed, which means that linear rings may not self intersect.-}
 
@@ -13,7 +13,7 @@ import Data.Int
 
 {-Multipolygons—The interiors of two polygons that are elements of a multipolygon may not intersect. The boundaries of any two polygons that are elements of a multipolygon may touch at only a finite number of points.-}
 
-type SRID = Maybe Int
+type SRID = Maybe Int 
 
 
 class EWKBGeometry a where
@@ -26,7 +26,7 @@ data Point = Point {
   , _y :: {-# UNPACK #-} !Double
   , _z :: Maybe Double
   , _m :: Maybe Double
-} deriving (Show)
+} deriving (Show, Eq)
 
 instance EWKBGeometry Point where
   hasM (Point x y z m) = m /= Nothing 
@@ -34,65 +34,50 @@ instance EWKBGeometry Point where
   geoType _ = 1
 
 -- todo, would like to dependently type this
-data LinearRing =  LinearRing (V.Vector Point) 
+{-data LinearRing =  LinearRing (V.Vector Point) -}
+type LinearRing = V.Vector Point
 
-instance Show LinearRing where
-  show (LinearRing vs) = show vs
+data LineString = LineString (V.Vector Point) deriving (Show, Eq)
 
-data LineString = LineString (V.Vector Point) 
-
-instance Show LineString where
-  show (LineString vs) = show vs
 
 instance EWKBGeometry LineString where
   hasM (LineString ps) = hasM . V.head $ ps
   hasZ (LineString ps) = hasZ . V.head $ ps
   geoType _ = 2
 
-data Polygon = Polygon (V.Vector LinearRing) deriving (Show)
+data Polygon = Polygon (V.Vector LinearRing) deriving (Show, Eq)
 
 hasMLinearRing :: LinearRing -> Bool
-hasMLinearRing (LinearRing ps) = hasM . V.head $ ps
+hasMLinearRing = hasM . V.head 
 
 hasZLinearRing :: LinearRing -> Bool
-hasZLinearRing (LinearRing ps) = hasZ . V.head $ ps
+hasZLinearRing = hasZ . V.head 
 
 instance EWKBGeometry Polygon where
   hasM (Polygon ps) = hasMLinearRing . V.head $ ps
   hasZ (Polygon ps) = hasZLinearRing . V.head $ ps
   geoType _ = 3
 
-data MultiPoint = MultiPoint (V.Vector Point)
-
-instance Show MultiPoint where
-  show (MultiPoint ps) = show ps
+data MultiPoint = MultiPoint (V.Vector Point) deriving (Show, Eq)
 
 instance EWKBGeometry MultiPoint where
   hasM (MultiPoint ps) = hasM . V.head $ ps
   hasZ (MultiPoint ps) = hasZ . V.head $ ps
   geoType _ = 4
 
-data MultiLineString = MultiLineString (V.Vector LineString) deriving (Show)
+data MultiLineString = MultiLineString (V.Vector LineString) deriving (Show, Eq)
 
 instance EWKBGeometry MultiLineString where
   hasM (MultiLineString ps) = hasM . V.head $ ps
   hasZ (MultiLineString ps) = hasZ . V.head $ ps
   geoType _ = 5
 
-data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Show)
+data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Show, Eq)
 
 instance EWKBGeometry MultiPolygon where
   hasM (MultiPolygon ps) = hasM . V.head $ ps
   hasZ (MultiPolygon ps) = hasZ . V.head $ ps
   geoType _ = 6
-
-instance Show Geometry where
-  show (GeoPoint s g) = show (s, g) 
-  show (GeoLineString s g) = show (s, g) 
-  show (GeoPolygon s g) = show (s, g) 
-  show (GeoMultiPoint s g) = show g 
-  show (GeoMultiLineString s g) = show g 
-  show (GeoMultiPolygon s g) = show g 
 
 srid :: Geometry -> SRID
 srid g = case g of
@@ -109,6 +94,6 @@ data Geometry =
   | GeoPolygon SRID Polygon
   | GeoMultiLineString SRID MultiLineString
   | GeoMultiPoint SRID MultiPoint
-  | GeoMultiPolygon SRID MultiPolygon
+  | GeoMultiPolygon SRID MultiPolygon deriving (Show, Eq)
 
 
