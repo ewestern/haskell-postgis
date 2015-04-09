@@ -19,7 +19,7 @@ type SRID = Maybe Int
 class EWKBGeometry a where
   hasM :: a -> Bool
   hasZ :: a -> Bool
-  geoType :: a -> Int
+  geoType :: a -> Word32 
 
 data Point = Point {
     _x :: {-# UNPACK #-} !Double

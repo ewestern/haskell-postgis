@@ -28,8 +28,8 @@ import Data.Typeable
 {-The "hex" format encodes binary data as 2 hexadecimal digits per byte, most significant nibble first. The entire string is preceded by the sequence \x (to distinguish it from the escape format). In some contexts, the initial backslash may need to be escaped by doubling it, in the same cases in which backslashes have to be doubled in escape format; details appear below. The hexadecimal digits can be either upper or lower case, and whitespace is permitted between digit pairs (but not within a digit pair nor in the starting \x sequence). The hex format is compatible with a wide range of external applications and protocols, and it tends to be faster to convert than the escape format, so its use is preferred.-}
 
 
-replicateM' :: Monad m => Word32 -> m a -> m (V.Vector a )
-replicateM' = V.replicateM . fromIntegral
+{-V.replicateM :: Monad m => Word32 -> m a -> m (V.Vector a )-}
+{-V.replicateM = V.replicateM . fromIntegral-}
 
 readGeometry :: BS.ByteString -> Geometry 
 {-readGeometry bs = error $ show bs-}
@@ -53,15 +53,15 @@ class Hexable a where
   fromHex :: BS.ByteString -> a
 
 instance Hexable Int where
-  toHex = toHexWord
+  toHex = toHexWord32
   fromHex = fromHexInt
 
 instance Hexable Word8 where
-  toHex = toHexInt
+  toHex = toHexWord8
   fromHex = fromHexInt
 
 instance Hexable Word32  where
-  toHex =  toHexWord
+  toHex =  toHexWord32
   fromHex = fromHexInt
 
 instance Hexable Double where
@@ -103,8 +103,8 @@ instance Serialize Header where
 parseHeader :: Get Header  
 parseHeader = do 
     or <- get	
-    t <- parseInt' or
-    s <- if t .&. wkbSRID > 0 then Just <$> parseInt' or  else return Nothing 
+    t <- fromIntegral <$>  parseInt' or
+    s <- if t .&. wkbSRID > 0 then (Just . fromIntegral) <$> parseInt' or  else return Nothing 
     return $ Header or t s
 
 parseNumber :: (Hexable a , Num a) => Int -> Endianness -> Get a
@@ -114,10 +114,10 @@ parseNumber l end = do
     BigEndian -> return $ fromHex bs
     LittleEndian -> return . fromHex . readLittleEndian $ bs 
 
-parseInt' :: Endianness -> Get Word32 
+parseInt' :: Endianness -> Get Int 
 parseInt' = parseNumber 8
 
-parseInt :: Parser Word32
+parseInt :: Parser Int 
 parseInt = (parseInt' <$> (asks _byteOrder)) >>= lift
 
 parseDouble' :: Endianness -> Get Double 
@@ -166,7 +166,7 @@ parsePoint = do
     return $ Point x y z m
 
 parseSegment :: Parser (V.Vector Point)
-parseSegment = parseInt >>= (\n -> replicateM' n parsePoint) 
+parseSegment = parseInt >>= (\n -> V.replicateM n parsePoint) 
   
 parseRing :: Parser LinearRing
 parseRing = parseSegment 
@@ -175,33 +175,33 @@ parseLineString :: Parser LineString
 parseLineString = lift parseHeader >> LineString <$> parseSegment
 
 parsePolygon :: Parser Polygon 
-parsePolygon = lift parseHeader >> Polygon <$> (parseInt >>= (\n -> replicateM' n parseRing))
+parsePolygon = lift parseHeader >> Polygon <$> (parseInt >>= (\n -> V.replicateM n parseRing))
 
 parseMultiPoint :: Parser MultiPoint 
 parseMultiPoint = do
   lift parseHeader
   n <- parseInt 
-  ps <- replicateM' n parseGeoPoint
+  ps <- V.replicateM n parseGeoPoint
   return $ MultiPoint ps
 
 parseMultiLineString :: Parser MultiLineString 
 parseMultiLineString = do
   lift parseHeader
   n <- parseInt
-  ls <- replicateM' n parseLineString 
+  ls <- V.replicateM n parseLineString 
   return $ MultiLineString ls
 
 parseMultiPolygon :: Parser MultiPolygon 
 parseMultiPolygon = do 
   lift parseHeader
   n <- parseInt
-  ps <- replicateM' n parsePolygon
+  ps <- V.replicateM n parsePolygon
   return $ MultiPolygon ps
 
 
 -- writers
-length' :: V.Vector a -> Word32
-length' = fromIntegral . V.length
+{-V.length :: V.Vector a -> Int-}
+{-V.length = fromIntegral . V.length-}
 
 writeNum :: (Hexable a, Num a) => Putter a
 writeNum = putByteString . toHex
@@ -222,44 +222,45 @@ writePoint p = do
 
 writeRing :: Putter LinearRing
 writeRing v = do
-  writeNum . length' $ v  
+  writeNum . V.length $ v  
   V.mapM_ writePoint v
   return ()
 
 
 putGeometry :: Putter Geometry
 putGeometry (GeoPoint s p) = do
+  {-error $ show $ _geoType $ makeHeader s p-}
   put $ makeHeader s p
   writePoint p
   return ()
 
 putGeometry (GeoLineString s ls@(LineString v)) = do
   put $ makeHeader s ls 
-  writeNum . length' $ v
+  writeNum . V.length $ v
   V.mapM_ writePoint v
   return ()
 
 putGeometry (GeoPolygon s pg@(Polygon rs)) = do
   put $ makeHeader s pg
-  writeNum . length' $ rs 
+  writeNum . V.length $ rs 
   V.mapM_ writeRing rs
   return ()
 
 putGeometry (GeoMultiPoint s mp@(MultiPoint ps)) = do
   put $ makeHeader s mp
-  writeNum . length' $ ps 
+  writeNum . V.length $ ps 
   V.mapM_ (putGeometry . GeoPoint s)  ps
   return ()
 
 putGeometry (GeoMultiLineString s mls@(MultiLineString ls)) = do
   put $ makeHeader s mls
-  writeNum . length' $ ls 
+  writeNum . V.length $ ls 
   V.mapM_ (putGeometry . GeoLineString s) ls
   return ()
 
 putGeometry (GeoMultiPolygon s mpg@(MultiPolygon ps)) = do
   put $ makeHeader s mpg
-  writeNum . length' $  ps 
+  writeNum . V.length $  ps 
   V.mapM_ (putGeometry . GeoPolygon s)  ps
   return ()
 

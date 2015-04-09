@@ -19,17 +19,23 @@ ewkbTypeOffset = 0x1fffffff :: Word32
 toHexDouble :: Double -> BS.ByteString
 toHexDouble = BL.toStrict . toLazyByteString . doubleHexFixed 
 
+toHexWord8 :: Integral a => a -> BS.ByteString
+toHexWord8 =  BL.toStrict . toLazyByteString . int8HexFixed . fromIntegral 
+
 -- toHexWord should only take 
-toHexWord :: Integral a => a -> BS.ByteString
-toHexWord i = case  packHexadecimal i of
-  Just bs -> bs
-  Nothing -> error "Cannot convert negative int"
+{-toHexWord :: Integral a => a -> BS.ByteString-}
+{-toHexWord i = case  packHexadecimal i of-}
+  {-Just bs -> bs-}
+  {-Nothing -> error "Cannot convert negative int"-}
+
+{-toHexDouble :: Num a => a -> BS.ByteString-}
+{-toHexDouble = -}
 
 toHexWord32 :: Integral a => a -> BS.ByteString
 toHexWord32 = BL.toStrict . toLazyByteString . int32HexFixed . fromIntegral
 
-toHexInt :: Integral a => a -> BS.ByteString
-toHexInt = BL.toStrict . toLazyByteString . int32HexFixed . fromIntegral
+{-toHexInt :: Integral a => a -> BS.ByteString-}
+{-toHexInt = BL.toStrict . toLazyByteString . int32HexFixed . fromIntegral-}
 {-toHexInt i = case packHexadecimal i of-}
     {-Just bs -> bs-}
     {-Nothing -> error "Cannot create bytestring"-}
