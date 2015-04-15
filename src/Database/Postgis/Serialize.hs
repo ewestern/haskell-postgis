@@ -4,8 +4,8 @@ module Database.Postgis.Serialize  where
 
 import Database.Postgis.Utils
 import Database.Postgis.Geometry
-import Data.Serialize 
-
+{-import Data.Serialize -}
+import Data.Binary
 import Data.Word
 import Development.Placeholders
 import Data.ByteString.Lex.Integral
@@ -19,9 +19,10 @@ import Data.Int
 import qualified Data.Vector as V
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.Builder
 
 
-import Data.Serialize.Builder 
+{-import Data.Serialize.Builder -}
 import Data.Typeable
 
 
@@ -49,15 +50,16 @@ data Header = Header {
 
 
 class Hexable a where
+  {-toHex :: a -> Builder-}
   toHex :: a -> BS.ByteString
   fromHex :: BS.ByteString -> a
 
 instance Hexable Int where
-  toHex = toHexWord32
+  toHex = toHexWord32 . fromIntegral
   fromHex = fromHexInt
 
 instance Hexable Word8 where
-  toHex = toHexWord8
+  toHex = toHexInt8  . fromIntegral
   fromHex = fromHexInt
 
 instance Hexable Word32  where
@@ -67,6 +69,7 @@ instance Hexable Word32  where
 instance Hexable Double where
   fromHex = wordToDouble . fromHexInt 
   toHex = toHexDouble 
+  {-toHex = toHexWord64 . doubleToWord-}
 
 makeHeader :: EWKBGeometry a => SRID -> a -> Header
 makeHeader s geo =
@@ -91,7 +94,7 @@ parseGeometry = do
       4 -> mkGeo h GeoMultiPoint parseMultiPoint 
       5 -> mkGeo h GeoMultiLineString parseMultiLineString
       6 -> mkGeo h GeoMultiPolygon  parseMultiPolygon 
-      _ -> error "not yet implemented"
+      _ -> error $ "not yet implemented" ++ (show tVal)
 
 mkGeo :: Header -> (SRID -> a -> Geometry) -> Parser a -> Get Geometry
 mkGeo h cons p = (cons (_srid h)) <$> runReaderT p h
@@ -107,12 +110,15 @@ parseHeader = do
     s <- if t .&. wkbSRID > 0 then (Just . fromIntegral) <$> parseInt' or  else return Nothing 
     return $ Header or t s
 
+
+type Parser = ReaderT Header Get
+
 parseNumber :: (Hexable a , Num a) => Int -> Endianness -> Get a
 parseNumber l end = do
   bs <- getByteString l
   case end of 
     BigEndian -> return $ fromHex bs
-    LittleEndian -> return . fromHex . readLittleEndian $ bs 
+    LittleEndian -> return . fromHex . convertLittleEndian $ bs 
 
 parseInt' :: Endianness -> Get Int 
 parseInt' = parseNumber 8
@@ -127,10 +133,8 @@ parseDouble :: Parser Double
 parseDouble = (parseDouble' <$> (asks _byteOrder)) >>= lift
 
 instance Serialize Endianness where
-  put BigEndian = putByteString "00"
-  put LittleEndian = putByteString "01" 
-  {-put BigEndian = putByteString $ toHex $ (0 :: Int) -}
-  {-put LittleEndian = putByteString $ toHex $ (1 :: Int) -}
+  put BigEndian = put $ toHex $ (0 :: Int) 
+  put LittleEndian = put $ toHex $ (1 :: Int) 
   get = do
     bs <- getByteString 2
     case (fromHex bs) :: Word8 of
@@ -139,17 +143,17 @@ instance Serialize Endianness where
       _ -> error $ "not an endian: " ++ show bs 
 
 
-type Parser = ReaderT Header Get
+--
 
-parseNum' :: (Show a, Num a, Hexable a) => Endianness -> Get a
-parseNum' BigEndian =  fromHex <$> get
-parseNum' LittleEndian = (fromHex . readLittleEndian) <$> get
-  
 
-parseNum :: (Show a, Num a, Hexable a) => Parser a
-parseNum = do
-  end <- asks _byteOrder
-  lift $ parseNum' end 
+{-parseNum' :: (Show a, Num a, Hexable a) => Endianness -> Get a-}
+{-parseNum' BigEndian =  fromHex <$> get-}
+{-parseNum' LittleEndian = (fromHex . convertLittleEndian) <$> get-}
+
+{-parseNum :: (Show a, Num a, Hexable a) => Parser a-}
+{-parseNum = do-}
+  {-end <- asks _byteOrder-}
+  {-lift $ parseNum' end -}
 
 parseGeoPoint :: Parser Point
 parseGeoPoint = lift parseHeader >> parsePoint
@@ -200,25 +204,21 @@ parseMultiPolygon = do
 
 
 -- writers
-{-V.length :: V.Vector a -> Int-}
-{-V.length = fromIntegral . V.length-}
 
 writeNum :: (Hexable a, Num a) => Putter a
-writeNum = putByteString . toHex
-
-{-writeWord32 :: Putter Word32-}
-{-writeWord32 = putByteString . toHex-}
+writeNum = put . toHex
 
 writeMaybeNum :: (Num a, Hexable a) => Putter (Maybe a)
 writeMaybeNum (Just n)  = writeNum n 
 writeMaybeNum Nothing = return () 
 
 writePoint :: Putter Point 
-writePoint p = do
+writePoint p = do 
+{-writePoint p = do-}
   writeNum  $ _x p
   writeNum  $ _y p
-  writeMaybeNum  $ _m p
-  writeMaybeNum  $ _z p
+  {-writeMaybeNum  $ _m p-}
+  {-writeMaybeNum  $ _z p-}
 
 writeRing :: Putter LinearRing
 writeRing v = do
@@ -229,7 +229,6 @@ writeRing v = do
 
 putGeometry :: Putter Geometry
 putGeometry (GeoPoint s p) = do
-  {-error $ show $ _geoType $ makeHeader s p-}
   put $ makeHeader s p
   writePoint p
   return ()
