@@ -22,14 +22,14 @@ class EWKBGeometry a where
   geoType :: a -> Word32 
 
 
-data Point =
+data PointA =
     Point2 {-# UNPACK #-} !Double {-# UNPACK #-} !Double
   | Point3Z {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
   | Point3M {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
   | Point4 {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double deriving (Show, Eq)
 
 
-instance EWKBGeometry Point where
+instance EWKBGeometry PointA where
   hasM (Point2 _ _) = False
   hasM (Point3Z _ _ _) = False
   hasM (Point3M _ _ _) = True
@@ -40,17 +40,17 @@ instance EWKBGeometry Point where
   hasZ (Point4 _ _ _ _) = True
   geoType _ = 1
 
-{-data Point = Point -}
-    {-_x :: [># UNPACK #<] !Double-}
-  {-, _y :: [># UNPACK #<] !Double-}
-  {-, _z :: Maybe Double-}
-  {-, _m :: Maybe Double-}
-{-} deriving (Show, Eq)-}
+data Point = Point  {
+    _x :: {-# UNPACK #-} !Double
+  , _y :: {-# UNPACK #-} !Double
+  , _z :: Maybe Double
+  , _m :: Maybe Double
+} deriving (Show, Eq)
 
-{-instance EWKBGeometry Point where-}
-  {-hasM (Point x y z m) = m /= Nothing -}
-  {-hasZ (Point x y z m) = z /= Nothing -}
-  {-geoType _ = 1-}
+instance EWKBGeometry Point where
+  hasM (Point x y z m) = m /= Nothing 
+  hasZ (Point x y z m) = z /= Nothing 
+  geoType _ = 1
 
 -- todo, would like to dependently type this
 {-data LinearRing =  LinearRing (V.Vector Point) -}

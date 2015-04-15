@@ -6,6 +6,8 @@ import Database.Postgis.Utils
 import Database.Postgis.Geometry
 {-import Data.Serialize -}
 import Data.Binary
+import Data.Binary.Get
+import Data.Binary.Put
 import Data.Word
 import Development.Placeholders
 import Data.ByteString.Lex.Integral
@@ -79,7 +81,7 @@ makeHeader s geo =
   in Header getSystemEndianness typ s 
 
 
-instance Serialize Geometry where
+instance Binary Geometry where
   get = parseGeometry
   put = putGeometry
 
@@ -99,7 +101,7 @@ parseGeometry = do
 mkGeo :: Header -> (SRID -> a -> Geometry) -> Parser a -> Get Geometry
 mkGeo h cons p = (cons (_srid h)) <$> runReaderT p h
 
-instance Serialize Header where 
+instance Binary Header where 
   put (Header bo gt s) = put bo >> writeNum gt  >> writeMaybeNum s
   get = parseHeader
 
@@ -132,9 +134,9 @@ parseDouble' = parseNumber 16
 parseDouble :: Parser Double
 parseDouble = (parseDouble' <$> (asks _byteOrder)) >>= lift
 
-instance Serialize Endianness where
-  put BigEndian = put $ toHex $ (0 :: Int) 
-  put LittleEndian = put $ toHex $ (1 :: Int) 
+instance Binary Endianness where
+  put BigEndian = putByteString $ toHex $ (0 :: Int) 
+  put LittleEndian = putByteString $ toHex $ (1 :: Int) 
   get = do
     bs <- getByteString 2
     case (fromHex bs) :: Word8 of
@@ -204,9 +206,10 @@ parseMultiPolygon = do
 
 
 -- writers
+type Putter a = a -> Put
 
 writeNum :: (Hexable a, Num a) => Putter a
-writeNum = put . toHex
+writeNum = putByteString . toHex
 
 writeMaybeNum :: (Num a, Hexable a) => Putter (Maybe a)
 writeMaybeNum (Just n)  = writeNum n 
@@ -214,11 +217,10 @@ writeMaybeNum Nothing = return ()
 
 writePoint :: Putter Point 
 writePoint p = do 
-{-writePoint p = do-}
   writeNum  $ _x p
   writeNum  $ _y p
-  {-writeMaybeNum  $ _m p-}
-  {-writeMaybeNum  $ _z p-}
+  writeMaybeNum  $ _m p
+  writeMaybeNum  $ _z p
 
 writeRing :: Putter LinearRing
 writeRing v = do
