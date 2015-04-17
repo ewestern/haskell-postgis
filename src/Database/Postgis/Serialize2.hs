@@ -3,30 +3,31 @@ import Database.Postgis.Geometry
 import Database.Postgis.Utils
 
 import Control.Monad.Reader
-import qualified Data.Attoparsec.ByteString as P
+{-import qualified Data.Attoparsec.ByteString as P-}
 import qualified Data.ByteString.Builder as B
-import Data.Attoparsec.ByteString (Parser)
-{-import Data.Attoparsec.ByteString.Char8-}
+{-import Data.Attoparsec.ByteString (Parser)-}
 import qualified Data.ByteString as BS
 import Control.Applicative ((<*>), (<$>))
 import Control.Monad.Writer.Lazy
+import Data.Binary.Get
+
 
 import Data.Binary.IEEE754
 import Data.Word
 import System.Endian
 
-getGeometry :: BS.ByteString -> Geometry
-getGeometry bs = case P.parse parseGeometry bs of
-    P.Fail t ss  s -> error s
-    P.Partial f -> undefined
-    P.Done r g -> g
+{-getGeometry :: BS.ByteString -> Geometry-}
+{-getGeometry bs = case P.parse parseGeometry bs of-}
+    {-P.Fail t ss  s -> error s-}
+    {-P.Partial f -> undefined-}
+    {-P.Done r g -> g-}
 
 type EndParser = ReaderT Header Parser 
-
+type Parser = Get
 type Putter = Writer BS.ByteString 
+
 class Serialize a where
   type Getter a
-  {-data Getter :: * -> *-}
   put :: a -> B.Builder 
   get :: Getter a 
 
@@ -96,7 +97,7 @@ parseGeometry = undefined
 
 parseNumber :: (Hexable a , Num a) => Int -> Endianness -> Parser a
 parseNumber l end = do
-  bs <- P.take l
+  bs <- getByteString l
   case end of 
     BigEndian -> return $ fromHex bs
     LittleEndian -> return . fromHex . convertLittleEndian $ bs 
