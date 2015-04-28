@@ -43,7 +43,6 @@ toHexInt8 :: Int8 -> BS.ByteString
 toHexInt8 = builderToBS . int8HexFixed 
 
 toHexWord32 :: Word32 -> BS.ByteString
-{-toHexWord32 = toHexNum word32HexFixed-}
 toHexWord32 = case getSystemEndianness of 
   BigEndian -> builderToBS . word32HexFixed 
   LittleEndian -> builderToBS . word32HexFixed . byteSwap32

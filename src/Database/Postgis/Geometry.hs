@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, TypeFamilies #-}
 
 module Database.Postgis.Geometry where
 
@@ -20,6 +20,7 @@ class EWKBGeometry a where
   hasM :: a -> Bool
   hasZ :: a -> Bool
   geoType :: a -> Word32 
+  {-geometry :: a -> InnerGeo-}
 
 
 data PointA =
