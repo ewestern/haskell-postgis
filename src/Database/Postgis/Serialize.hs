@@ -1,48 +1,104 @@
-{-# LANGUAGE GADTs, FlexibleInstances, OverloadedStrings #-}
-
+{-# LANGUAGE TypeFamilies, GADTs, FlexibleInstances, OverloadedStrings #-}
 module Database.Postgis.Serialize  where
-
-import Database.Postgis.Utils
 import Database.Postgis.Geometry
-{-import Data.Serialize -}
+
+import Data.ByteString.Lex.Integral
+import Data.Bits
+import Control.Monad.Reader
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BC
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
-import Data.Word
-import Development.Placeholders
-import Data.ByteString.Lex.Integral
-import Data.Bits
-import Control.Applicative ((<*>), (<$>))
-import Data.Binary.IEEE754
 import System.Endian
-import Control.Monad.Reader
-import Data.Int
-
 import qualified Data.Vector as V
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
-import Data.ByteString.Builder
+
+import Data.Binary.IEEE754
+import Data.Int
+import Control.Applicative ((<$>))
+
+wkbZ =  0x80000000 :: Word32
+wkbM = 0x40000000 :: Word32
+wkbSRID = 0x20000000 :: Word32
+ewkbTypeOffset = 0x1fffffff :: Word32
 
 
-{-import Data.Serialize.Builder -}
-import Data.Typeable
+  
+writeGeometry :: Geometry -> BL.ByteString
+writeGeometry = runPut . putGeometry 
+
+readGeometry :: BL.ByteString -> Geometry
+readGeometry = runGet getGeometry
+
+type Getter = ReaderT Header Get 
+type Putter a = a -> Put 
+
+instance Binary Endianness where
+  get = fromHex <$> (getLazyByteString 2) 
+  put = putLazyByteString . toHex
+
+instance Binary Header where
+  get = getHeader 
+  put (Header bo gt s) = put bo >> (putInt . fromIntegral) gt  >> putMaybe s putInt
+
+class Hexable a where
+  toHex :: a -> BL.ByteString
+  fromHex :: BL.ByteString -> a
+
+instance Hexable Endianness where
+  toHex BigEndian = "00" :: BL.ByteString  
+  toHex LittleEndian = "01" :: BL.ByteString  
+  fromHex b = case (fromHexInt b) :: Word8 of
+    0 -> BigEndian
+    1 -> LittleEndian
+    _ -> error $ "Not an Endian" ++ show b
+
+instance Hexable Int where
+  toHex = (toHexWord  byteSwap32 8) . fromIntegral
+  fromHex = fromHexInt
+
+instance Hexable Word32  where
+  toHex =  (toHexWord  byteSwap32 8) . fromIntegral
+  fromHex = fromHexInt
 
 
-{-The "hex" format encodes binary data as 2 hexadecimal digits per byte, most significant nibble first. The entire string is preceded by the sequence \x (to distinguish it from the escape format). In some contexts, the initial backslash may need to be escaped by doubling it, in the same cases in which backslashes have to be doubled in escape format; details appear below. The hexadecimal digits can be either upper or lower case, and whitespace is permitted between digit pairs (but not within a digit pair nor in the starting \x sequence). The hex format is compatible with a wide range of external applications and protocols, and it tends to be faster to convert than the escape format, so its use is preferred.-}
+instance Hexable Double where
+  fromHex = wordToDouble . fromHexInt 
+  toHex = (toHexWord byteSwap64 16) . doubleToWord
+
+--- converters
+
+endFunc ::(a -> a) -> (a -> a)
+endFunc f = case getSystemEndianness of
+  BigEndian -> id
+  LittleEndian -> f
+
+toHexWord :: Integral a => (a -> a) -> Int -> a -> BL.ByteString
+toHexWord f l w = conv . (endFunc f) $ w
+  where
+    conv w = case packHexadecimal w of
+      Just s -> BL.fromChunks [padd l s]
+      Nothing -> error "Cannot convert word" 
+    padd l bs =
+      let diff = l - (BS.length bs )
+      in BS.append (BC.replicate diff '0') bs
 
 
-{-V.replicateM :: Monad m => Word32 -> m a -> m (V.Vector a )-}
-{-V.replicateM = V.replicateM . fromIntegral-}
+fromHexInt :: Integral a => BL.ByteString -> a
+fromHexInt bs = case readHexadecimal lazy of
+    Just (v, r) -> v
+    Nothing -> error "Cannot parse hexadecimal"
+    where
+      lazy = BS.concat . BL.toChunks $ bs
 
-readGeometry :: BS.ByteString -> Geometry 
-{-readGeometry bs = error $ show bs-}
-readGeometry bs = case runGet parseGeometry bs of
-           Left e -> error $ "failed parse" ++ e
-           Right g -> g 
+convertLittleEndian :: BL.ByteString -> BL.ByteString
+convertLittleEndian bs = BL.concat . reverse $ splitEvery bs
+  where
+    splitEvery bs = 
+      let (first, rest) = BL.splitAt 2 bs in 
+      if BL.null bs then [] else first : (splitEvery rest)
 
-writeGeometry :: Geometry -> BS.ByteString
-writeGeometry = runPut . putGeometry
-{-writeGeometry = toByteString . execPut . putGeometry-}
 
 data Header = Header {
     _byteOrder :: Endianness
@@ -50,29 +106,7 @@ data Header = Header {
   , _srid :: SRID
 } deriving (Show)
 
-
-class Hexable a where
-  {-toHex :: a -> Builder-}
-  toHex :: a -> BS.ByteString
-  fromHex :: BS.ByteString -> a
-
-instance Hexable Int where
-  toHex = toHexWord32 . fromIntegral
-  fromHex = fromHexInt
-
-instance Hexable Word8 where
-  toHex = toHexInt8  . fromIntegral
-  fromHex = fromHexInt
-
-instance Hexable Word32  where
-  toHex =  toHexWord32
-  fromHex = fromHexInt
-
-instance Hexable Double where
-  fromHex = wordToDouble . fromHexInt 
-  toHex = toHexDouble 
-  {-toHex = toHexWord64 . doubleToWord-}
-
+---
 makeHeader :: EWKBGeometry a => SRID -> a -> Header
 makeHeader s geo =
   let gt = geoType geo
@@ -81,187 +115,151 @@ makeHeader s geo =
   in Header getSystemEndianness typ s 
 
 
-instance Binary Geometry where
-  get = parseGeometry
-  put = putGeometry
-
-parseGeometry :: Get Geometry 
-parseGeometry = do
-    h <- lookAhead get
-    let tVal = (_geoType h) .&. ewkbTypeOffset
-    case tVal of
-      1 -> mkGeo h GeoPoint parseGeoPoint
-      2 -> mkGeo h GeoLineString parseLineString 
-      3 -> mkGeo h GeoPolygon parsePolygon 
-      4 -> mkGeo h GeoMultiPoint parseMultiPoint 
-      5 -> mkGeo h GeoMultiLineString parseMultiLineString
-      6 -> mkGeo h GeoMultiPolygon  parseMultiPolygon 
-      _ -> error $ "not yet implemented" ++ (show tVal)
-
-mkGeo :: Header -> (SRID -> a -> Geometry) -> Parser a -> Get Geometry
-mkGeo h cons p = (cons (_srid h)) <$> runReaderT p h
-
-instance Binary Header where 
-  put (Header bo gt s) = put bo >> writeNum gt  >> writeMaybeNum s
-  get = parseHeader
-
-parseHeader :: Get Header  
-parseHeader = do 
-    or <- get	
-    t <- fromIntegral <$>  parseInt' or
-    s <- if t .&. wkbSRID > 0 then (Just . fromIntegral) <$> parseInt' or  else return Nothing 
-    return $ Header or t s
-
-
-type Parser = ReaderT Header Get
-
-parseNumber :: (Hexable a , Num a) => Int -> Endianness -> Get a
-parseNumber l end = do
-  bs <- getByteString l
-  case end of 
-    BigEndian -> return $ fromHex bs
-    LittleEndian -> return . fromHex . convertLittleEndian $ bs 
-
-parseInt' :: Endianness -> Get Int 
-parseInt' = parseNumber 8
-
-parseInt :: Parser Int 
-parseInt = (parseInt' <$> (asks _byteOrder)) >>= lift
-
-parseDouble' :: Endianness -> Get Double 
-parseDouble' = parseNumber 16
-
-parseDouble :: Parser Double
-parseDouble = (parseDouble' <$> (asks _byteOrder)) >>= lift
-
-instance Binary Endianness where
-  put BigEndian = putByteString $ toHex $ (0 :: Int) 
-  put LittleEndian = putByteString $ toHex $ (1 :: Int) 
-  get = do
-    bs <- getByteString 2
-    case (fromHex bs) :: Word8 of
-      0 -> return BigEndian
-      1 -> return LittleEndian
-      _ -> error $ "not an endian: " ++ show bs 
-
-
---
-
-
-{-parseNum' :: (Show a, Num a, Hexable a) => Endianness -> Get a-}
-{-parseNum' BigEndian =  fromHex <$> get-}
-{-parseNum' LittleEndian = (fromHex . convertLittleEndian) <$> get-}
-
-{-parseNum :: (Show a, Num a, Hexable a) => Parser a-}
-{-parseNum = do-}
-  {-end <- asks _byteOrder-}
-  {-lift $ parseNum' end -}
-
-parseGeoPoint :: Parser Point
-parseGeoPoint = lift parseHeader >> parsePoint
-
-parsePoint :: Parser Point
-parsePoint = do
-    gt <- asks _geoType 
-    let hasM = if (gt .&. wkbM) > 0 then True else False 
-        hasZ = if (gt .&. wkbZ) > 0 then True else False
-    x <- parseDouble
-    y <- parseDouble
-    z <- if hasZ then Just <$> parseDouble else return Nothing
-    m <- if hasM then Just <$> parseDouble else return Nothing
-    return $ Point x y z m
-
-parseSegment :: Parser (V.Vector Point)
-parseSegment = parseInt >>= (\n -> V.replicateM n parsePoint) 
-  
-parseRing :: Parser LinearRing
-parseRing = parseSegment 
-
-parseLineString :: Parser LineString 
-parseLineString = lift parseHeader >> LineString <$> parseSegment
-
-parsePolygon :: Parser Polygon 
-parsePolygon = lift parseHeader >> Polygon <$> (parseInt >>= (\n -> V.replicateM n parseRing))
-
-parseMultiPoint :: Parser MultiPoint 
-parseMultiPoint = do
-  lift parseHeader
-  n <- parseInt 
-  ps <- V.replicateM n parseGeoPoint
-  return $ MultiPoint ps
-
-parseMultiLineString :: Parser MultiLineString 
-parseMultiLineString = do
-  lift parseHeader
-  n <- parseInt
-  ls <- V.replicateM n parseLineString 
-  return $ MultiLineString ls
-
-parseMultiPolygon :: Parser MultiPolygon 
-parseMultiPolygon = do 
-  lift parseHeader
-  n <- parseInt
-  ps <- V.replicateM n parsePolygon
-  return $ MultiPolygon ps
-
-
--- writers
-type Putter a = a -> Put
-
-writeNum :: (Hexable a, Num a) => Putter a
-writeNum = putByteString . toHex
-
-writeMaybeNum :: (Num a, Hexable a) => Putter (Maybe a)
-writeMaybeNum (Just n)  = writeNum n 
-writeMaybeNum Nothing = return () 
-
-writePoint :: Putter Point 
-writePoint p = do 
-  writeNum  $ _x p
-  writeNum  $ _y p
-  writeMaybeNum  $ _m p
-  writeMaybeNum  $ _z p
-
-writeRing :: Putter LinearRing
-writeRing v = do
-  writeNum . V.length $ v  
-  V.mapM_ writePoint v
-  return ()
-
+putRing :: Putter LinearRing
+putRing v = do
+  putInt . V.length $ v  
+  V.mapM_ putPoint v
 
 putGeometry :: Putter Geometry
 putGeometry (GeoPoint s p) = do
   put $ makeHeader s p
-  writePoint p
-  return ()
+  putPoint p
 
 putGeometry (GeoLineString s ls@(LineString v)) = do
   put $ makeHeader s ls 
-  writeNum . V.length $ v
-  V.mapM_ writePoint v
-  return ()
+  putRing v
 
 putGeometry (GeoPolygon s pg@(Polygon rs)) = do
   put $ makeHeader s pg
-  writeNum . V.length $ rs 
-  V.mapM_ writeRing rs
-  return ()
+  putInt . V.length $ rs 
+  V.mapM_ putRing rs
 
 putGeometry (GeoMultiPoint s mp@(MultiPoint ps)) = do
   put $ makeHeader s mp
-  writeNum . V.length $ ps 
+  putInt . V.length $ ps 
   V.mapM_ (putGeometry . GeoPoint s)  ps
-  return ()
 
 putGeometry (GeoMultiLineString s mls@(MultiLineString ls)) = do
   put $ makeHeader s mls
-  writeNum . V.length $ ls 
+  putInt . V.length $ ls 
   V.mapM_ (putGeometry . GeoLineString s) ls
-  return ()
 
 putGeometry (GeoMultiPolygon s mpg@(MultiPolygon ps)) = do
   put $ makeHeader s mpg
-  writeNum . V.length $  ps 
+  putInt . V.length $  ps 
   V.mapM_ (putGeometry . GeoPolygon s)  ps
-  return ()
 
+----
+putPoint :: Putter Point
+putPoint (Point x y m z) = putDouble x >> putDouble y >> putMaybe m putDouble >> putMaybe z putDouble
+
+putDouble :: Putter Double
+putDouble = putLazyByteString . toHex
+
+putInt :: Putter Int
+putInt = putLazyByteString . toHex 
+
+putMaybe :: Maybe a -> Putter a -> Put
+putMaybe mi = case mi of
+  Just i -> ($ i) 
+  Nothing -> (\x -> return ())
+
+--
+-- getters 
+--
+getGeometry :: Get Geometry 
+getGeometry = do
+  h <- lookAhead get
+  let t = (_geoType h) .&. ewkbTypeOffset
+      mkGeo :: (SRID -> a -> Geometry) -> Getter a -> Get Geometry
+      mkGeo cons p = cons (_srid h) <$> runReaderT p h
+  case t of
+      1 -> mkGeo GeoPoint getGeoPoint
+      2 -> mkGeo GeoLineString getLineString 
+      3 -> mkGeo GeoPolygon getPolygon 
+      4 -> mkGeo GeoMultiPoint getMultiPoint 
+      5 -> mkGeo GeoMultiLineString getMultiLineString
+      6 -> mkGeo GeoMultiPolygon  getMultiPolygon 
+      _ -> error $ "not yet implemented" ++ (show t)
+
+
+getMultiPolygon :: Getter MultiPolygon 
+getMultiPolygon = do 
+  lift getHeader
+  n <- getInt
+  ps <- V.replicateM n getPolygon
+  return $ MultiPolygon ps
+
+getMultiLineString :: Getter MultiLineString 
+getMultiLineString = do
+  lift getHeader
+  n <- getInt
+  ls <- V.replicateM n getLineString 
+  return $ MultiLineString ls
+
+getMultiPoint :: Getter MultiPoint 
+getMultiPoint = do
+  lift getHeader
+  n <- getInt 
+  ps <- V.replicateM n getGeoPoint
+  return $ MultiPoint ps
+ 
+getPolygon :: Getter Polygon 
+getPolygon = lift getHeader >> Polygon <$> (getInt >>= (\n -> V.replicateM n getRing))
+
+getLineString :: Getter LineString 
+getLineString = lift getHeader >> LineString <$> getSegment
+
+getRing :: Getter LinearRing
+getRing = getSegment 
+
+getSegment :: Getter (V.Vector Point)
+getSegment = getInt >>= (\n -> V.replicateM n getPoint) 
+ 
+getGeoPoint :: Getter Point
+getGeoPoint = lift getHeader >> getPoint
+
+getPoint :: Getter Point
+getPoint = do
+    gt <- asks _geoType 
+    let hasM = if (gt .&. wkbM) > 0 then True else False 
+        hasZ = if (gt .&. wkbZ) > 0 then True else False
+    x <- getDouble
+    y <- getDouble
+    z <- if hasZ then Just <$> getDouble else return Nothing
+    m <- if hasM then Just <$> getDouble else return Nothing
+    return $ Point x y z m
+
+getHeader :: Get Header
+getHeader = do
+    or <- get	
+    t <- fromIntegral <$>  getInt' or
+    s <- if t .&. wkbSRID > 0 then (Just . fromIntegral) <$> getInt' or  else return Nothing 
+    return $ Header or t s
+
+-- number parsers
+getNumber :: (Hexable a) => Int64 -> Endianness -> Get a
+getNumber l end  = do
+  bs <- getLazyByteString l
+  case end of 
+    BigEndian -> return $ fromHex bs
+    LittleEndian -> return . fromHex . convertLittleEndian $ bs 
+
+getByEnd :: Endianness -> (a -> a) -> (a -> a)
+getByEnd e f = case e of 
+  BigEndian -> id
+  LittleEndian -> f
+
+-- word32 = 4 bytes * 2 nibbles
+getInt' :: Endianness -> Get Int
+getInt' = getNumber 8
+
+getInt :: Getter Int 
+getInt = (getInt' <$> (asks _byteOrder)) >>= lift
+
+-- word64 =  8 bytes * 2 nibbles
+getDouble' :: Endianness -> Get Double 
+getDouble' = getNumber 16
+
+getDouble :: Getter Double
+getDouble = (getDouble'  <$> (asks _byteOrder)) >>= lift

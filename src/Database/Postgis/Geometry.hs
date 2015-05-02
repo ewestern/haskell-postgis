@@ -3,8 +3,6 @@
 module Database.Postgis.Geometry where
 
 import qualified Data.Vector as V
-import Development.Placeholders
-import qualified Data.Text as T
 import Data.Word
 
 {-Linear rings—Rings are simple and closed, which means that linear rings may not self intersect.-}

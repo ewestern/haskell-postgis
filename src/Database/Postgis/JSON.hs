@@ -1,11 +1,13 @@
-
-module Database.Postgis.Simple.JSON (
+{-# LANGUAGE TemplateHaskell #-}
+module Database.Postgis.JSON (
   ToJSON (..),
   FromJSON (..)
-)
+) where
 
 import Data.Aeson
 import Database.Postgis.Geometry
+import qualified Data.Vector as V
+import qualified Data.Text as T
 import Development.Placeholders
 
 
@@ -15,12 +17,6 @@ instance ToJSON Point where
 {-object ["type" .= ("Point" :: T.Text), "coordinates" .= (toJSON [x, y, m, z])]-}
 
 instance FromJSON Point where
-  parseJSON (Object v) = $notImplemented
-
-instance ToJSON LinearRing where
-  toJSON (LinearRing vs) = toJSON $ V.map toJSON vs 
-
-instance FromJSON LinearRing where
   parseJSON (Object v) = $notImplemented
 
 instance FromJSON LineString where
@@ -45,7 +41,7 @@ instance FromJSON MultiPoint where
 instance ToJSON MultiLineString where
   toJSON (MultiLineString ls) = object ["type" .= ("MultiLineString" :: T.Text), "coordinates" .= V.map toJSON ls]
 
-instance FromJSON MultiLineStringGeometry where
+instance FromJSON MultiLineString where
   parseJSON (Object v) = $notImplemented
 
 instance ToJSON MultiPolygon where
