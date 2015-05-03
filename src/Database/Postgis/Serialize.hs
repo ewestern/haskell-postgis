@@ -23,8 +23,6 @@ wkbM = 0x40000000 :: Word32
 wkbSRID = 0x20000000 :: Word32
 ewkbTypeOffset = 0x1fffffff :: Word32
 
-
-  
 writeGeometry :: Geometry -> BL.ByteString
 writeGeometry = runPut . putGeometry 
 
@@ -54,36 +52,24 @@ instance Hexable Endianness where
     1 -> LittleEndian
     _ -> error $ "Not an Endian" ++ show b
 
-instance Hexable Int where
-  toHex = (toHexWord  byteSwap32 8) . fromIntegral
-  fromHex = fromHexInt
-
 instance Hexable Word32  where
-  toHex =  (toHexWord  byteSwap32 8) . fromIntegral
+  toHex = toHexWord 8
   fromHex = fromHexInt
 
-
-instance Hexable Double where
-  fromHex = wordToDouble . fromHexInt 
-  toHex = (toHexWord byteSwap64 16) . doubleToWord
+instance Hexable Word64 where
+  toHex = toHexWord 16 
+  fromHex = fromHexInt
 
 --- converters
 
-endFunc ::(a -> a) -> (a -> a)
-endFunc f = case getSystemEndianness of
-  BigEndian -> id
-  LittleEndian -> f
-
-toHexWord :: Integral a => (a -> a) -> Int -> a -> BL.ByteString
-toHexWord f l w = conv . (endFunc f) $ w
+toHexWord :: Integral a => Int -> a -> BL.ByteString
+toHexWord l w = case packHexadecimal w of
+  Just s -> BL.fromChunks [padd l s]
+  Nothing -> error "Cannot convert word" 
   where
-    conv w = case packHexadecimal w of
-      Just s -> BL.fromChunks [padd l s]
-      Nothing -> error "Cannot convert word" 
     padd l bs =
       let diff = l - (BS.length bs )
       in BS.append (BC.replicate diff '0') bs
-
 
 fromHexInt :: Integral a => BL.ByteString -> a
 fromHexInt bs = case readHexadecimal lazy of
@@ -91,14 +77,6 @@ fromHexInt bs = case readHexadecimal lazy of
     Nothing -> error "Cannot parse hexadecimal"
     where
       lazy = BS.concat . BL.toChunks $ bs
-
-convertLittleEndian :: BL.ByteString -> BL.ByteString
-convertLittleEndian bs = BL.concat . reverse $ splitEvery bs
-  where
-    splitEvery bs = 
-      let (first, rest) = BL.splitAt 2 bs in 
-      if BL.null bs then [] else first : (splitEvery rest)
-
 
 data Header = Header {
     _byteOrder :: Endianness
@@ -113,7 +91,6 @@ makeHeader s geo =
       wOr acc (p, h) = if p then h .|. acc else acc
       typ = foldl wOr gt [(hasM geo, wkbM), (hasZ geo, wkbZ), (s /= Nothing, wkbSRID)]   
   in Header getSystemEndianness typ s 
-
 
 putRing :: Putter LinearRing
 putRing v = do
@@ -154,10 +131,10 @@ putPoint :: Putter Point
 putPoint (Point x y m z) = putDouble x >> putDouble y >> putMaybe m putDouble >> putMaybe z putDouble
 
 putDouble :: Putter Double
-putDouble = putLazyByteString . toHex
+putDouble = putLazyByteString . toHex . (endFunc getSystemEndianness byteSwap64) . doubleToWord
 
 putInt :: Putter Int
-putInt = putLazyByteString . toHex 
+putInt = putLazyByteString . toHex . (endFunc getSystemEndianness byteSwap32) . fromIntegral
 
 putMaybe :: Maybe a -> Putter a -> Put
 putMaybe mi = case mi of
@@ -238,28 +215,29 @@ getHeader = do
     return $ Header or t s
 
 -- number parsers
-getNumber :: (Hexable a) => Int64 -> Endianness -> Get a
-getNumber l end  = do
-  bs <- getLazyByteString l
-  case end of 
-    BigEndian -> return $ fromHex bs
-    LittleEndian -> return . fromHex . convertLittleEndian $ bs 
-
-getByEnd :: Endianness -> (a -> a) -> (a -> a)
-getByEnd e f = case e of 
+endFunc :: Endianness -> (a -> a) -> (a -> a)
+endFunc e f = case e of 
   BigEndian -> id
   LittleEndian -> f
 
+-- 
+getNumber :: (Hexable a) => (a -> a) -> Int64 -> Endianness -> Get a
+getNumber f l end  = do
+  bs <- getLazyByteString l
+  case end of 
+    BigEndian -> return $ fromHex bs
+    LittleEndian -> return . f . fromHex $ bs 
+
 -- word32 = 4 bytes * 2 nibbles
 getInt' :: Endianness -> Get Int
-getInt' = getNumber 8
+getInt' = (fmap fromIntegral) . getNumber byteSwap32 8
 
 getInt :: Getter Int 
 getInt = (getInt' <$> (asks _byteOrder)) >>= lift
 
 -- word64 =  8 bytes * 2 nibbles
 getDouble' :: Endianness -> Get Double 
-getDouble' = getNumber 16
+getDouble' = (fmap wordToDouble) . (getNumber byteSwap64  16)
 
 getDouble :: Getter Double
 getDouble = (getDouble'  <$> (asks _byteOrder)) >>= lift

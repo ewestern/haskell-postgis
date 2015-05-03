@@ -51,9 +51,11 @@ instance EWKBGeometry Point where
   hasZ (Point x y z m) = z /= Nothing 
   geoType _ = 1
 
--- todo, would like to dependently type this
-{-data LinearRing =  LinearRing (V.Vector Point) -}
 type LinearRing = V.Vector Point
+
+isClosed :: V.Vector Point -> Bool
+isClosed v = V.head v == V.last v
+
 
 data LineString = LineString (V.Vector Point) deriving (Show, Eq)
 
@@ -113,5 +115,3 @@ data Geometry =
   | GeoMultiLineString SRID MultiLineString
   | GeoMultiPoint SRID MultiPoint
   | GeoMultiPolygon SRID MultiPolygon deriving (Show, Eq)
-
-
