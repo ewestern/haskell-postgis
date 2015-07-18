@@ -10,6 +10,10 @@ cabal install
 
 ## Usage
 ```
+import Database.PostgreSQL.Simple.ToRow
+import Database.PostgreSQL.Simple.ToField
+import Database.PostgreSQL.Simple.FromRow
+import Database.PostgreSQL.Simple.FromField 
 import Postgis.DB
 
 data Table = Table {
@@ -17,5 +21,17 @@ data Table = Table {
 }
 instance FromRow Table where
   fromRow = Table <$> field
+
+instance ToRow Table where
+  toRow (Table g)  = [toField g]
+
+instance ToField Geometry where
+  toField  =  Plain . fromByteString . writeGeometry 
+
+instance FromField Geometry where
+	fromField f m = case m of
+              Just bs -> return $ readGeometry bs
+              Nothing -> error "Invalid Field" 
+
 ```
 
