@@ -21,24 +21,6 @@ class EWKBGeometry a where
   {-geometry :: a -> InnerGeo-}
 
 
-data PointA =
-    Point2 {-# UNPACK #-} !Double {-# UNPACK #-} !Double
-  | Point3Z {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
-  | Point3M {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double
-  | Point4 {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double {-# UNPACK #-} !Double deriving (Show, Eq)
-
-
-instance EWKBGeometry PointA where
-  hasM (Point2 _ _) = False
-  hasM (Point3Z _ _ _) = False
-  hasM (Point3M _ _ _) = True
-  hasM (Point4 _ _ _ _) = True
-  hasZ (Point2 _ _) = False
-  hasZ (Point3Z _ _ _) = True 
-  hasZ (Point3M _ _ _) = False 
-  hasZ (Point4 _ _ _ _) = True
-  geoType _ = 1
-
 data Point = Point  {
     _x :: {-# UNPACK #-} !Double
   , _y :: {-# UNPACK #-} !Double

@@ -21,16 +21,17 @@ library
   -- other-extensions:    
   build-depends:
         base   >= 4.4 
-      , vector >= 0.10
-      , binary >= 0.7
-      , bytestring-lexing >= 0.4.3
-      , cpu >= 0.1.2
-      , mtl >= 0.1
-      , data-binary-ieee754 >= 0.4
-      , text > 0.11 
-      , bytestring > 0.10
-      , placeholders >= 0.1
-      , aeson  >= 0.7 
+      , vector
+      , binary
+      , bytestring-lexing 
+      , cpu
+      , mtl
+      , data-binary-ieee754
+      , text
+      , bytestring
+      , placeholders 
+      , aeson  
+      , unordered-containers
   hs-source-dirs: src     
   default-language:    Haskell2010
   exposed-modules: 
@@ -39,13 +40,25 @@ library
     , Database.Postgis.Serialize
     , Database.Postgis.JSON
 
-test-suite Test
+test-suite tests
   type: 
       exitcode-stdio-1.0
-  hs-source-dirs:
-      src, tests  
-  main-is: Tests.hs
+  hs-source-dirs: tests  
+  main-is: Spec.hs
+  default-language:    Haskell2010
+  other-modules:         GeoSpec
   build-depends:
       base >= 4.4  
     , hspec >= 2.1
-
+    , haskell-postgis
+    , vector
+    , binary
+    , bytestring-lexing 
+    , cpu
+    , mtl
+    , data-binary-ieee754
+    , text
+    , bytestring
+    , placeholders 
+    , aeson  
+    , unordered-containers
