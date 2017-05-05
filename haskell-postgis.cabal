@@ -37,6 +37,7 @@ library
       Database.Postgis
     , Database.Postgis.Geometry
     , Database.Postgis.Serialize
+    , Database.Postgis.JSON
 
 test-suite Test
   type: 
