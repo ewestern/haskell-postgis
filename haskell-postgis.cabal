@@ -4,7 +4,7 @@
 name:                haskell-postgis
 version:             0.1.0.1
 synopsis:            A haskell library for PostGIS geometry types.
--- description:         
+description:         A haskell library for PostGIS geometry types.
 license:             MIT
 license-file:        LICENSE
 author:              Peter
@@ -20,7 +20,7 @@ library
   -- other-modules:       
   -- other-extensions:    
   build-depends:
-        base   >= 4.4 
+        base   >= 4.4 && <=5.0
       , vector
       , binary
       , bytestring-lexing 
@@ -48,7 +48,7 @@ test-suite tests
   default-language:    Haskell2010
   other-modules:         GeoSpec
   build-depends:
-      base >= 4.4  
+      base >= 4.4  && <=5.0
     , hspec >= 2.1
     , haskell-postgis
     , vector
@@ -62,3 +62,7 @@ test-suite tests
     , placeholders 
     , aeson  
     , unordered-containers
+
+source-repository head
+  type:     git
+  location: https://github.com/ewestern/haskell-postgis
