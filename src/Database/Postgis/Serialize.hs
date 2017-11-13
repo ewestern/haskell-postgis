@@ -209,7 +209,7 @@ getPoint = do
 
 getHeader :: Get Header
 getHeader = do
-    or <- get	
+    or <- get
     t <- fromIntegral <$>  getInt' or
     s <- if t .&. wkbSRID > 0 then (Just . fromIntegral) <$> getInt' or  else return Nothing 
     return $ Header or t s

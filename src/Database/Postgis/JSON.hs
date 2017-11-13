@@ -103,10 +103,12 @@ instance ToJSON Geometry where
 sridToJson srid = 
   object ["type" .= ("name" :: T.Text), "properties" .= object ["name" .= ("ESPG:" <> (show srid)  :: String)] ]
 
+
 parseCRS :: Value -> Parser (Maybe Int)
 parseCRS = withObject "crs" $ \o ->  do
-  ("name" :: T.Text) <- o .: "type"
-  prop <- o .: "prop"
+  crs <- o .: "crs" 
+  ("name"::T.Text) <- crs .: "type"
+  prop <- crs .: "properties"
   espg <-  prop .: "name"
   let (x:y:xs) = T.split ((==) ':') espg
   case decimal y of
@@ -115,7 +117,7 @@ parseCRS = withObject "crs" $ \o ->  do
     
   
 instance FromJSON Geometry where
-  parseJSON o 
+  parseJSON o  
     =   GeoPoint <$> parseCRS o <*> parseJSON o
     <|> GeoLineString <$> parseCRS o <*> parseJSON o
     <|> GeoPolygon <$> parseCRS o <*> parseJSON o
