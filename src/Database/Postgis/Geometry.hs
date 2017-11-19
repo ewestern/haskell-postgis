@@ -1,9 +1,12 @@
 {-# LANGUAGE GADTs, TypeFamilies #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Database.Postgis.Geometry where
 
 import qualified Data.Vector as V
 import Data.Word
+import Data.Data
+import Data.Typeable
 
 {-Linear rings—Rings are simple and closed, which means that linear rings may not self intersect.-}
 
@@ -26,7 +29,7 @@ data Point = Point  {
   , _y :: {-# UNPACK #-} !Double
   , _z :: Maybe Double
   , _m :: Maybe Double
-} deriving (Show, Eq)
+} deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry Point where
   hasM (Point x y z m) = m /= Nothing 
@@ -39,7 +42,7 @@ isClosed :: V.Vector Point -> Bool
 isClosed v = V.head v == V.last v
 
 
-data LineString = LineString (V.Vector Point) deriving (Show, Eq)
+data LineString = LineString (V.Vector Point) deriving (Data, Typeable, Show, Eq)
 
 
 instance EWKBGeometry LineString where
@@ -47,7 +50,7 @@ instance EWKBGeometry LineString where
   hasZ (LineString ps) = hasZ . V.head $ ps
   geoType _ = 2
 
-data Polygon = Polygon (V.Vector LinearRing) deriving (Show, Eq)
+data Polygon = Polygon (V.Vector LinearRing) deriving (Data, Typeable, Show, Eq)
 
 hasMLinearRing :: LinearRing -> Bool
 hasMLinearRing = hasM . V.head 
@@ -60,21 +63,21 @@ instance EWKBGeometry Polygon where
   hasZ (Polygon ps) = hasZLinearRing . V.head $ ps
   geoType _ = 3
 
-data MultiPoint = MultiPoint (V.Vector Point) deriving (Show, Eq)
+data MultiPoint = MultiPoint (V.Vector Point) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiPoint where
   hasM (MultiPoint ps) = hasM . V.head $ ps
   hasZ (MultiPoint ps) = hasZ . V.head $ ps
   geoType _ = 4
 
-data MultiLineString = MultiLineString (V.Vector LineString) deriving (Show, Eq)
+data MultiLineString = MultiLineString (V.Vector LineString) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiLineString where
   hasM (MultiLineString ps) = hasM . V.head $ ps
   hasZ (MultiLineString ps) = hasZ . V.head $ ps
   geoType _ = 5
 
-data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Show, Eq)
+data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiPolygon where
   hasM (MultiPolygon ps) = hasM . V.head $ ps
@@ -96,4 +99,4 @@ data Geometry =
   | GeoPolygon SRID Polygon
   | GeoMultiLineString SRID MultiLineString
   | GeoMultiPoint SRID MultiPoint
-  | GeoMultiPolygon SRID MultiPolygon deriving (Show, Eq)
+  | GeoMultiPolygon SRID MultiPolygon deriving (Data, Typeable, Show, Eq)
