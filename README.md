@@ -14,7 +14,7 @@ import Database.PostgreSQL.Simple.ToRow
 import Database.PostgreSQL.Simple.ToField
 import Database.PostgreSQL.Simple.FromRow
 import Database.PostgreSQL.Simple.FromField 
-import Postgis.DB
+import Database.Postgis
 
 data Table = Table {
   geometry :: Geometry
