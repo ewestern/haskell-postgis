@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, GADTs, FlexibleInstances, OverloadedStrings #-}
-module Database.Postgis.Serialize  where
+module Database.Postgis.Serialize where
 import Database.Postgis.Geometry
 
 import Data.ByteString.Lex.Integral

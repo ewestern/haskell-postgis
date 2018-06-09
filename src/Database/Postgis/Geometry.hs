@@ -21,12 +21,11 @@ class EWKBGeometry a where
   hasM :: a -> Bool
   hasZ :: a -> Bool
   geoType :: a -> Word32 
-  {-geometry :: a -> InnerGeo-}
 
 
 data Point = Point  {
-    _x :: {-# UNPACK #-} !Double
-  , _y :: {-# UNPACK #-} !Double
+    _x :: Double
+  , _y :: Double
   , _z :: Maybe Double
   , _m :: Maybe Double
 } deriving (Data, Typeable, Show, Eq)

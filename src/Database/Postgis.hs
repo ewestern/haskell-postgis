@@ -6,7 +6,20 @@ module Database.Postgis
   , writeGeometry
 
   ) where
-import Database.Postgis.Geometry
-import Database.Postgis.Serialize
+import Database.Postgis.Geometry (
+          SRID,
+          Point(..),
+          LineString(..),
+          LinearRing,
+          Polygon(..),
+          MultiPoint(..),
+          MultiLineString(..),
+          MultiPolygon(..),
+          Geometry(..)
+        )
+import Database.Postgis.Serialize (
+        writeGeometry,
+        readGeometry
+      )
 
 

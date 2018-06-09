@@ -45,7 +45,3 @@ instance VectorSpace Point where
 instance InnerSpace Point where
   (Point2 x y) <.> (Point2 x2 y2) = (x * x2) + (y * y2)
 
-
-{-cross :: AffineSpace a, VectorSpace a-}
-{-instance VectorSpace Point where-}
-  {-type Scalar Point =  -}

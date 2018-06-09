@@ -33,19 +33,15 @@ spec = do
     it "should convert ByteString to Endianness" $ do
       fromHex be `shouldBe` BigEndian
       fromHex le `shouldBe` LittleEndian
-    {-it "should convert int32 to a hex ByteString" $ do-}
       
-  {-describe "parseGeometry" $ do-}
     it "Should correctly parse a bytestring into a Point" $ do
         readGeometry point1BS `shouldBe` point1
     it "Should parse a bytestring into a LineString" $ do
         readGeometry linestring1BS `shouldBe` linestring1
-  {-describe "writeGeometry" $ do-}
     it "Should correctly write a Point into a bytestring" $ do
         (toUpperBS $ writeGeometry point1) `shouldBe` point1BS
     it "Should write a LineString into a bytestring" $ do
         (toUpperBS $ writeGeometry linestring1) `shouldBe` linestring1BS 
-  {-describe "Json" $ do-}
     it "Encodes a linestring" $ do
       encode linestring1 `shouldBe` linestringJSON
     
