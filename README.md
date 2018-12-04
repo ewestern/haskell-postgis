@@ -8,7 +8,7 @@ cd haskell-postgis
 cabal install
 ```
 
-## Usage
+## Example Usage with postgresql-simple
 ```
 import Database.PostgreSQL.Simple.ToRow
 import Database.PostgreSQL.Simple.ToField
