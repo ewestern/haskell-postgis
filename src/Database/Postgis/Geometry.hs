@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs, TypeFamilies #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE GeneralisedNewtypeDeriving #-}
 
 module Database.Postgis.Geometry where
 
@@ -22,26 +23,27 @@ class EWKBGeometry a where
   hasZ :: a -> Bool
   geoType :: a -> Word32 
 
-
-data Point = Point  {
+data Position = Position {
     _x :: Double
   , _y :: Double
   , _z :: Maybe Double
   , _m :: Maybe Double
 } deriving (Data, Typeable, Show, Eq)
 
-instance EWKBGeometry Point where
-  hasM (Point x y z m) = m /= Nothing 
-  hasZ (Point x y z m) = z /= Nothing 
+newtype Point = Point Position deriving (Data, Typeable, Show, Eq, EWKBGeometry)
+
+instance EWKBGeometry Position where
+  hasM (Position x y z m) = m /= Nothing 
+  hasZ (Position x y z m) = z /= Nothing 
   geoType _ = 1
 
-type LinearRing = V.Vector Point
+type LinearRing = V.Vector Position
 
-isClosed :: V.Vector Point -> Bool
+isClosed :: V.Vector Position -> Bool
 isClosed v = V.head v == V.last v
 
 
-data LineString = LineString (V.Vector Point) deriving (Data, Typeable, Show, Eq)
+data LineString = LineString (V.Vector Position) deriving (Data, Typeable, Show, Eq)
 
 
 instance EWKBGeometry LineString where
@@ -62,7 +64,7 @@ instance EWKBGeometry Polygon where
   hasZ (Polygon ps) = hasZLinearRing . V.head $ ps
   geoType _ = 3
 
-data MultiPoint = MultiPoint (V.Vector Point) deriving (Data, Typeable, Show, Eq)
+data MultiPoint = MultiPoint (V.Vector Position) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiPoint where
   hasM (MultiPoint ps) = hasM . V.head $ ps

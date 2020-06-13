@@ -95,7 +95,7 @@ makeHeader s geo =
 putRing :: Putter LinearRing
 putRing v = do
   putInt . V.length $ v  
-  V.mapM_ putPoint v
+  V.mapM_ putPosition v
 
 putGeometry :: Putter Geometry
 putGeometry (GeoPoint s p) = do
@@ -114,7 +114,7 @@ putGeometry (GeoPolygon s pg@(Polygon rs)) = do
 putGeometry (GeoMultiPoint s mp@(MultiPoint ps)) = do
   put $ makeHeader s mp
   putInt . V.length $ ps 
-  V.mapM_ (putGeometry . GeoPoint s)  ps
+  V.mapM_ putPosition ps
 
 putGeometry (GeoMultiLineString s mls@(MultiLineString ls)) = do
   put $ makeHeader s mls
@@ -127,8 +127,11 @@ putGeometry (GeoMultiPolygon s mpg@(MultiPolygon ps)) = do
   V.mapM_ (putGeometry . GeoPolygon s)  ps
 
 ----
+putPosition :: Putter Position
+putPosition (Position x y m z) = putDouble x >> putDouble y >> putMaybe m putDouble >> putMaybe z putDouble
+
 putPoint :: Putter Point
-putPoint (Point x y m z) = putDouble x >> putDouble y >> putMaybe m putDouble >> putMaybe z putDouble
+putPoint (Point position) = putPosition position
 
 putDouble :: Putter Double
 putDouble = putLazyByteString . toHex . (endFunc getSystemEndianness byteSwap64) . doubleToWord
@@ -178,7 +181,7 @@ getMultiPoint :: Getter MultiPoint
 getMultiPoint = do
   lift getHeader
   n <- getInt 
-  ps <- V.replicateM n getGeoPoint
+  ps <- V.replicateM n getPosition
   return $ MultiPoint ps
  
 getPolygon :: Getter Polygon 
@@ -190,22 +193,25 @@ getLineString = lift getHeader >> LineString <$> getSegment
 getRing :: Getter LinearRing
 getRing = getSegment 
 
-getSegment :: Getter (V.Vector Point)
-getSegment = getInt >>= (\n -> V.replicateM n getPoint) 
+getSegment :: Getter (V.Vector Position)
+getSegment = getInt >>= (\n -> V.replicateM n getPosition) 
  
 getGeoPoint :: Getter Point
 getGeoPoint = lift getHeader >> getPoint
 
+getPosition :: Getter Position
+getPosition = do
+  gt <- asks _geoType 
+  let hasM = if (gt .&. wkbM) > 0 then True else False 
+      hasZ = if (gt .&. wkbZ) > 0 then True else False
+  x <- getDouble
+  y <- getDouble
+  z <- if hasZ then Just <$> getDouble else return Nothing
+  m <- if hasM then Just <$> getDouble else return Nothing
+  return $ Position x y z m
+
 getPoint :: Getter Point
-getPoint = do
-    gt <- asks _geoType 
-    let hasM = if (gt .&. wkbM) > 0 then True else False 
-        hasZ = if (gt .&. wkbZ) > 0 then True else False
-    x <- getDouble
-    y <- getDouble
-    z <- if hasZ then Just <$> getDouble else return Nothing
-    m <- if hasM then Just <$> getDouble else return Nothing
-    return $ Point x y z m
+getPoint = getPosition >>= return . Point
 
 getHeader :: Get Header
 getHeader = do

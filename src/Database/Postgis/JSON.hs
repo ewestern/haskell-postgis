@@ -20,14 +20,26 @@ import Data.Vector ((!), (!?))
 import qualified Data.HashMap.Lazy as HM
 import Data.Text.Read (decimal)
 
+instance ToJSON Position where
+  toJSON (Position x y m z) = toJSON $ catMaybes [Just x, Just y, m, z]
+
+instance FromJSON Position where
+  parseJSON = withArray "Position" $ \v' -> do
+    v <- traverse parseJSON v'
+    return $ Position (v ! 0) (v ! 1) (v !? 2) (v !? 3)
 
 instance ToJSON Point where
-  toJSON (Point x y m z) = toJSON $ catMaybes [Just x, Just y, m, z]
+  toJSON (Point position) = object
+    [ "type" .= ("Point" :: T.Text)
+    , "coordinates" .= toJSON position
+    ]
 
 instance FromJSON Point where
-  parseJSON = withArray "Point" $ \v' -> do
-    v <- sequence $ fmap parseJSON v'
-    return $ Point (v ! 0) (v ! 1) (v !? 2) (v !? 3)
+  parseJSON = withObject "Point" $ \o -> do
+    ("Point" :: T.Text) <- o .: "type"
+    cs <- o .: "coordinates"
+    pos <- parseJSON cs
+    return $ Point pos
 
 instance FromJSON LineString where
   parseJSON = withObject "LineString" $ \o -> do
