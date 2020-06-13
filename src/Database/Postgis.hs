@@ -8,6 +8,7 @@ module Database.Postgis
   ) where
 import Database.Postgis.Geometry (
           SRID,
+          Position(..),
           Point(..),
           LineString(..),
           LinearRing,
