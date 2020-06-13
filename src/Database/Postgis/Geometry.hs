@@ -8,6 +8,7 @@ import qualified Data.Vector as V
 import Data.Word
 import Data.Data
 import Data.Typeable
+import Data.Maybe
 
 {-Linear rings—Rings are simple and closed, which means that linear rings may not self intersect.-}
 
@@ -33,8 +34,8 @@ data Position = Position {
 newtype Point = Point Position deriving (Data, Typeable, Show, Eq, EWKBGeometry)
 
 instance EWKBGeometry Position where
-  hasM (Position x y z m) = m /= Nothing 
-  hasZ (Position x y z m) = z /= Nothing 
+  hasM (Position x y z m) = isJust m
+  hasZ (Position x y z m) = isJust z
   geoType _ = 1
 
 type LinearRing = V.Vector Position
@@ -43,7 +44,7 @@ isClosed :: V.Vector Position -> Bool
 isClosed v = V.head v == V.last v
 
 
-data LineString = LineString (V.Vector Position) deriving (Data, Typeable, Show, Eq)
+newtype LineString = LineString (V.Vector Position) deriving (Data, Typeable, Show, Eq)
 
 
 instance EWKBGeometry LineString where
@@ -51,7 +52,7 @@ instance EWKBGeometry LineString where
   hasZ (LineString ps) = hasZ . V.head $ ps
   geoType _ = 2
 
-data Polygon = Polygon (V.Vector LinearRing) deriving (Data, Typeable, Show, Eq)
+newtype Polygon = Polygon (V.Vector LinearRing) deriving (Data, Typeable, Show, Eq)
 
 hasMLinearRing :: LinearRing -> Bool
 hasMLinearRing = hasM . V.head 
@@ -64,21 +65,21 @@ instance EWKBGeometry Polygon where
   hasZ (Polygon ps) = hasZLinearRing . V.head $ ps
   geoType _ = 3
 
-data MultiPoint = MultiPoint (V.Vector Position) deriving (Data, Typeable, Show, Eq)
+newtype MultiPoint = MultiPoint (V.Vector Position) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiPoint where
   hasM (MultiPoint ps) = hasM . V.head $ ps
   hasZ (MultiPoint ps) = hasZ . V.head $ ps
   geoType _ = 4
 
-data MultiLineString = MultiLineString (V.Vector LineString) deriving (Data, Typeable, Show, Eq)
+newtype MultiLineString = MultiLineString (V.Vector LineString) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiLineString where
   hasM (MultiLineString ps) = hasM . V.head $ ps
   hasZ (MultiLineString ps) = hasZ . V.head $ ps
   geoType _ = 5
 
-data MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Data, Typeable, Show, Eq)
+newtype MultiPolygon = MultiPolygon (V.Vector Polygon) deriving (Data, Typeable, Show, Eq)
 
 instance EWKBGeometry MultiPolygon where
   hasM (MultiPolygon ps) = hasM . V.head $ ps

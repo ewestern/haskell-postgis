@@ -13,6 +13,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import System.Endian
 import qualified Data.Vector as V
+import Data.Maybe
 
 import Data.Binary.IEEE754
 import Data.Int
@@ -33,7 +34,7 @@ type Getter = ReaderT Header Get
 type Putter a = a -> Put 
 
 instance Binary Endianness where
-  get = fromHex <$> (getLazyByteString 2) 
+  get = fromHex <$> getLazyByteString 2
   put = putLazyByteString . toHex
 
 instance Binary Header where
@@ -89,7 +90,7 @@ makeHeader :: EWKBGeometry a => SRID -> a -> Header
 makeHeader s geo =
   let gt = geoType geo
       wOr acc (p, h) = if p then h .|. acc else acc
-      typ = foldl wOr gt [(hasM geo, wkbM), (hasZ geo, wkbZ), (s /= Nothing, wkbSRID)]   
+      typ = foldl wOr gt [(hasM geo, wkbM), (hasZ geo, wkbZ), (isJust s, wkbSRID)]
   in Header getSystemEndianness typ s 
 
 putRing :: Putter LinearRing
@@ -150,7 +151,7 @@ putMaybe mi = case mi of
 getGeometry :: Get Geometry 
 getGeometry = do
   h <- lookAhead get
-  let t = (_geoType h) .&. ewkbTypeOffset
+  let t = _geoType h .&. ewkbTypeOffset
       mkGeo :: (SRID -> a -> Geometry) -> Getter a -> Get Geometry
       mkGeo cons p = cons (_srid h) <$> runReaderT p h
   case t of
@@ -202,8 +203,8 @@ getGeoPoint = lift getHeader >> getPoint
 getPosition :: Getter Position
 getPosition = do
   gt <- asks _geoType 
-  let hasM = if (gt .&. wkbM) > 0 then True else False 
-      hasZ = if (gt .&. wkbZ) > 0 then True else False
+  let hasM = (gt .&. wkbM) > 0
+      hasZ = (gt .&. wkbZ) > 0
   x <- getDouble
   y <- getDouble
   z <- if hasZ then Just <$> getDouble else return Nothing

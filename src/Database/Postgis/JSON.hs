@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -25,7 +24,7 @@ instance ToJSON Position where
 
 instance FromJSON Position where
   parseJSON = withArray "Position" $ \v' -> do
-    v <- traverse parseJSON v'
+    v <- mapM parseJSON v'
     return $ Position (v ! 0) (v ! 1) (v !? 2) (v !? 3)
 
 instance ToJSON Point where
@@ -45,9 +44,9 @@ instance FromJSON LineString where
   parseJSON = withObject "LineString" $ \o -> do
     ("LineString" :: T.Text) <- o .: "type"
     cs <- o .: "coordinates"
-    vs <- sequence $ fmap parseJSON cs
-    return $ LineString vs 
-    
+    vs <- mapM parseJSON cs
+    return $ LineString vs
+
 instance ToJSON LineString where
   toJSON (LineString points) = object ["type" .= ("LineString" :: T.Text), "coordinates" .=  V.map toJSON points]
 
@@ -60,7 +59,7 @@ instance FromJSON Polygon where
   parseJSON = withObject "Polygon" $ \o -> do
     ("Polygon" :: T.Text) <- o .: "type"
     ls <- o .: "coordinates"
-    cs <- sequence $ fmap parseJSON ls
+    cs <- mapM parseJSON ls
     return $ Polygon cs
 
 ---
@@ -71,7 +70,7 @@ instance FromJSON MultiPoint where
   parseJSON = withObject "MultiPoint" $ \o -> do
     ("MultiPoint" :: T.Text) <- o .: "type"
     ls <- o .: "coordinates"
-    cs <- sequence $ fmap parseJSON ls
+    cs <- mapM parseJSON ls
     return $ MultiPoint cs
 
 instance ToJSON MultiLineString where
@@ -81,7 +80,7 @@ instance FromJSON MultiLineString where
   parseJSON = withObject "MultiLineString" $ \o -> do
     ("MultiLineString" :: T.Text) <- o .: "type"
     ls <- o .: "coordinates"
-    cs <- sequence $ fmap parseJSON ls
+    cs <- mapM parseJSON ls
     return $ MultiLineString cs
 
 instance ToJSON MultiPolygon where
@@ -91,17 +90,17 @@ instance FromJSON MultiPolygon where
   parseJSON = withObject "MultiPolygon" $ \o -> do
     ("MultiPolygon" :: T.Text) <- o .: "type"
     ls <- o .: "coordinates"
-    cs <- sequence $ fmap parseJSON ls
+    cs <- mapM parseJSON ls
     return $ MultiPolygon cs
 
 addKeyToValue :: Value -> T.Text -> Value -> Maybe Value
 addKeyToValue (Object hm) k v = Just . Object $ HM.insert k v hm
 addKeyToValue _ _ _ = Nothing
-  
+
 go :: ToJSON a => SRID -> a -> Value
-go (Just s) x = 
-    let v = toJSON x 
-    in maybe v id $ addKeyToValue v "crs" $ sridToJson s
+go (Just s) x =
+    let v = toJSON x
+    in fromMaybe v $ addKeyToValue v "crs" $ sridToJson s
 go Nothing x = toJSON x
 
 instance ToJSON Geometry where
@@ -112,24 +111,24 @@ instance ToJSON Geometry where
   toJSON (GeoMultiLineString s x) =  go s x
   toJSON (GeoMultiPolygon s x) =  go s x
 
-sridToJson srid = 
-  object ["type" .= ("name" :: T.Text), "properties" .= object ["name" .= ("ESPG:" <> (show srid)  :: String)] ]
+sridToJson srid =
+  object ["type" .= ("name" :: T.Text), "properties" .= object ["name" .= ("ESPG:" <> show srid  :: String)] ]
 
 
 parseCRS :: Value -> Parser (Maybe Int)
 parseCRS = withObject "crs" $ \o ->  do
-  crs <- o .: "crs" 
+  crs <- o .: "crs"
   ("name"::T.Text) <- crs .: "type"
   prop <- crs .: "properties"
   espg <-  prop .: "name"
-  let (x:y:xs) = T.split ((==) ':') espg
+  let (x:y:xs) = T.split (':' ==) espg
   case decimal y of
     Left e ->  return Nothing
     Right (v,_) -> return $ Just v
-    
-  
+
+
 instance FromJSON Geometry where
-  parseJSON o  
+  parseJSON o
     =   GeoPoint <$> parseCRS o <*> parseJSON o
     <|> GeoLineString <$> parseCRS o <*> parseJSON o
     <|> GeoPolygon <$> parseCRS o <*> parseJSON o
