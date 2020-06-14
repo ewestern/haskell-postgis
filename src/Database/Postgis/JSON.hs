@@ -117,14 +117,17 @@ sridToJson srid =
 
 parseCRS :: Value -> Parser (Maybe Int)
 parseCRS = withObject "crs" $ \o ->  do
-  crs <- o .: "crs"
-  ("name"::T.Text) <- crs .: "type"
-  prop <- crs .: "properties"
-  espg <-  prop .: "name"
-  let (x:y:xs) = T.split (':' ==) espg
-  case decimal y of
-    Left e ->  return Nothing
-    Right (v,_) -> return $ Just v
+  crs <- o .:? "crs"
+  case crs of
+    Nothing -> return Nothing
+    Just v -> do
+      ("name"::T.Text) <- v .: "type"
+      prop <- v .: "properties"
+      espg <-  prop .: "name"
+      let (x:y:xs) = T.split (':' ==) espg
+      case decimal y of
+        Left e ->  return Nothing
+        Right (v,_) -> return $ Just v
 
 
 instance FromJSON Geometry where
