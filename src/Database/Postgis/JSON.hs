@@ -18,6 +18,7 @@ import Data.Monoid ((<>))
 import Data.Vector ((!), (!?))
 import qualified Data.HashMap.Lazy as HM
 import Data.Text.Read (decimal)
+import Data.Either.Combinators (rightToMaybe)
 
 instance ToJSON Position where
   toJSON (Position x y m z) = toJSON $ catMaybes [Just x, Just y, m, z]
@@ -116,16 +117,16 @@ sridToJson srid =
 
 
 parseCRS :: Value -> Parser (Maybe Int)
-parseCRS = withObject "crs" $ \o ->  do
-  crs <- o .: "crs"
-  ("name"::T.Text) <- crs .: "type"
-  prop <- crs .: "properties"
-  espg <-  prop .: "name"
-  let (x:y:xs) = T.split (':' ==) espg
-  case decimal y of
-    Left e ->  return Nothing
-    Right (v,_) -> return $ Just v
-
+parseCRS = withObject "crs" $ \o ->
+  (o .:? "crs") >>= maybe (return Nothing) _parseCRS
+  where
+    _parseCRS crs = do
+        ("name"::T.Text) <- crs .: "type"
+        prop <- crs .: "properties"
+        espg <-  prop .: "name"
+        -- FIXME: any string before : allowed
+        let (x:y:xs) = T.split (':' ==) espg
+        return $ rightToMaybe (decimal y) >>= Just . fst
 
 instance FromJSON Geometry where
   parseJSON o
