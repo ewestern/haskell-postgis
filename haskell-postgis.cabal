@@ -4,7 +4,7 @@
 name:                haskell-postgis
 version:             0.2.0
 synopsis:            A haskell library for PostGIS geometry types.
-description:         A haskell library for PostGIS geometry types.
+description:         A collection of types and parsers to use with the PostGIS extesion to PostgreSQL.
 license:             MIT
 license-file:        LICENSE
 author:              Peter
