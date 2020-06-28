@@ -12,7 +12,6 @@ import Data.Aeson.Types (Parser)
 import Database.Postgis.Geometry
 import qualified Data.Vector as V
 import qualified Data.Text as T
-import Development.Placeholders
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Vector ((!), (!?))

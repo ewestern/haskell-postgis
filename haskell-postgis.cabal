@@ -29,7 +29,6 @@ library
       , data-binary-ieee754
       , text
       , bytestring
-      , placeholders 
       , aeson  
       , unordered-containers
       , either
