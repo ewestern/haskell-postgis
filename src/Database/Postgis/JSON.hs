@@ -15,7 +15,8 @@ import qualified Data.Text as T
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Vector ((!), (!?))
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.Aeson.Key as K
+import qualified Data.Aeson.KeyMap as KM
 import Data.Text.Read (decimal)
 import Data.Either.Combinators (rightToMaybe)
 
@@ -94,7 +95,7 @@ instance FromJSON MultiPolygon where
     return $ MultiPolygon cs
 
 addKeyToValue :: Value -> T.Text -> Value -> Maybe Value
-addKeyToValue (Object hm) k v = Just . Object $ HM.insert k v hm
+addKeyToValue (Object hm) k v = Just . Object $ KM.insert (K.fromText k) v hm
 addKeyToValue _ _ _ = Nothing
 
 go :: ToJSON a => SRID -> a -> Value
